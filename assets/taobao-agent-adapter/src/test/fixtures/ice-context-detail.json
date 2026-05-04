@@ -1,0 +1,69 @@
+{
+  "_about": "Captured shape of window.__ICE_APP_CONTEXT__.loaderData.home.data.res after readIceContextRaw cherrypicks the subtrees parseIceContextDetail uses. Anonymized: shop / seller / item ids and image hostnames are realistic-shaped placeholders. Rebuild from a real Taobao detail page (Tmall or item.taobao) when a snapshot fails — the path inside Taobao's SSR is the part that drifts.",
+  "componentsVO": {
+    "priceVO": {
+      "price": {
+        "priceUnit": "￥",
+        "priceColor": "#FF4F00",
+        "priceTitle": "优惠促销",
+        "priceColorNew": "#FF5000",
+        "priceTitleColor": "#FF4F00",
+        "priceText": "13.3",
+        "priceMoney": "1330",
+        "hiddenPrice": "false"
+      },
+      "isNewStyle": "true"
+    }
+  },
+  "seller": {
+    "sellerNick": "示例旗舰店",
+    "shopName": "示例旗舰店",
+    "shopId": "100000001",
+    "sellerId": "200000002",
+    "userId": "200000002",
+    "creditLevel": "10",
+    "sellerType": "B",
+    "evaluates": [
+      {
+        "score": "4.8 ",
+        "level": "1",
+        "levelText": "高",
+        "title": "宝贝描述",
+        "type": "desc"
+      },
+      {
+        "score": "4.8 ",
+        "level": "1",
+        "levelText": "高",
+        "title": "卖家服务",
+        "type": "serv"
+      },
+      {
+        "score": "4.9 ",
+        "level": "1",
+        "levelText": "高",
+        "title": "物流服务",
+        "type": "post"
+      }
+    ]
+  },
+  "item": {
+    "vagueSellCount": "1000+",
+    "images": [
+      "https://img.alicdn.com/imgextra/i2/0000000001/example_!!example-0-item_pic.jpg",
+      "https://img.alicdn.com/imgextra/i1/0000000001/example_alt_!!example-0-item_pic.jpg",
+      "https://img.alicdn.com/imgextra/i3/0000000001/example_third_!!example-2-item_pic.png"
+    ]
+  },
+  "skuCore": {
+    "sku2info": {
+      "0": {
+        "moreQuantity": "true",
+        "quantity": 200,
+        "logisticsTime": "预计明天发货，后天18点前送达",
+        "quantityDisplayValue": 1,
+        "quantityText": "有货"
+      }
+    }
+  }
+}

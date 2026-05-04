@@ -1,0 +1,11 @@
+node_modules/
+npm-cache/
+dist/
+*.log
+
+# Defensive — runtime data is stored under ~/.taobao-agent (or
+# $TAOBAO_DATA_DIR). These paths only appear in the project tree if a
+# user overrides TAOBAO_DATA_DIR back to the project root.
+.profiles/
+.playwright/
+downloads/

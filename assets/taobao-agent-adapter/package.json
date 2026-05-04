@@ -1,0 +1,34 @@
+{
+  "name": "taobao-agent-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A Playwright-based Taobao adapter scaffold for agent-friendly navigation using persistent browser profiles, network inspection, and state detection.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "npm run build && node --test dist/src/test/**/*.test.js",
+    "smoke:doctor": "npm run build && node dist/src/cli.js doctor --json",
+    "smoke:public": "npm run build && TAOBAO_HEADLESS=1 node dist/src/cli.js public-smoke",
+    "taobao:probe": "npm run build && node dist/src/cli.js probe-session",
+    "taobao:search": "npm run build && node dist/src/cli.js search",
+    "taobao:open-result": "npm run build && node dist/src/cli.js open-result",
+    "taobao:open-href": "npm run build && node dist/src/cli.js open-href",
+    "taobao:browser:start": "bash scripts/remote-browser.sh start",
+    "taobao:browser:status": "bash scripts/remote-browser.sh status",
+    "taobao:browser:stop": "bash scripts/remote-browser.sh stop",
+    "taobao:probe:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js probe-session",
+    "taobao:search:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js search",
+    "taobao:open-result:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js open-result",
+    "taobao:open-href:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js open-href",
+    "taobao:download-images": "npm run build && node dist/src/cli.js download-images",
+    "taobao:download-images:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js download-images"
+  },
+  "dependencies": {
+    "playwright-core": "^1.53.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3"
+  }
+}
