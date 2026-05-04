@@ -31,24 +31,28 @@ them to the user — never by automated solving.
 
 ## Quick start
 
+Install the skill (one command via [`degit`](https://github.com/Rich-Harris/degit)):
+
 ```bash
-# One-time setup — auto-detects the browser, persists the choice
-./scripts/taobao.sh setup
-
-# Open the dedicated Chromium window and log into Taobao once
-./scripts/taobao.sh browser-start
-# (log in interactively in the window that just opened)
-
-# Verify the attached-browser workflow
-./scripts/taobao.sh probe-attached
-
-# Search and inspect a listing
-./scripts/taobao.sh search-attached "ICM-42688-P"
-./scripts/taobao.sh open-href-attached "https://item.taobao.com/item.htm?id=…"
+mkdir -p ~/.claude/skills
+npx -y degit yuxiangcheng2002/taobao-skill ~/.claude/skills/taobao
 ```
 
-For the fully scripted entry point and per-OS browser-trust quirks see
-[`SKILL.md`](SKILL.md) and [`references/browsers.md`](references/browsers.md).
+Restart Claude Code so it registers the new skill. From any session, ask
+Claude something like "set up taobao" or "search Taobao for ESP32" and
+the agent will:
+
+1. Run `./scripts/taobao.sh setup` (verifies Node, npm, browser, Gatekeeper).
+2. Run `./scripts/taobao.sh browser-start` — pauses to ask you to log
+   into Taobao in the dedicated window once.
+3. Run `./scripts/taobao.sh probe-attached` to confirm the session is live.
+4. Proceed with whatever you actually asked for.
+
+For full install details (including offline / tarball fallback) see
+[`INSTALL.md`](INSTALL.md). For per-OS browser-trust quirks see
+[`references/browsers.md`](references/browsers.md). For the agent's
+runtime guidance see [`SKILL.md`](SKILL.md) and
+[`references/workflow.md`](references/workflow.md).
 
 ## Architecture
 

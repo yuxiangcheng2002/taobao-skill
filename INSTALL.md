@@ -1,9 +1,15 @@
 # Installing the taobao skill
 
-This file is for humans receiving the skill as a tarball. The agent inside
-Claude Code can guide everything once the skill is installed, but cannot
-guide its own installation (chicken and egg). Run the three steps below;
+This file is for humans installing the skill on a fresh machine. The agent
+inside Claude Code can guide everything once the skill is registered, but
+cannot guide its own installation (chicken and egg). Run the steps below;
 afterwards the agent takes over.
+
+The recommended install is one command via [`degit`](https://github.com/Rich-Harris/degit),
+which fetches the skill directly from the public mirror at
+[yuxiangcheng2002/taobao-skill](https://github.com/yuxiangcheng2002/taobao-skill).
+If you can't use `degit` (offline, locked-down network, etc.) the tarball
+flow still works — see "Tarball install" below.
 
 ## Prerequisites
 
@@ -15,35 +21,43 @@ afterwards the agent takes over.
   Chromium via Homebrew on macOS — the cask ships unsigned and triggers
   Gatekeeper. Stick with Chrome / Edge / Brave.)
 
-## Three install steps
+## Recommended install — one command via `degit`
 
-### 1. Extract the tarball
+```bash
+mkdir -p ~/.claude/skills
+npx -y degit yuxiangcheng2002/taobao-skill ~/.claude/skills/taobao
+```
+
+`degit` (no `npm install` of the package itself) just fetches the latest
+state of the public repo's `main` branch into the target directory. It
+takes a couple of seconds and leaves no `.git/` behind, so subsequent
+re-runs cleanly overwrite to the newest version.
+
+Then restart Claude Code — quit and relaunch (or run `/reload-skills`
+if your build supports it). The skill is registered when Claude Code
+scans `~/.claude/skills/` on startup.
+
+Updating later: the same `npx degit … --force` command pulls the latest
+release. Your login state under `~/.taobao-agent/` is untouched.
+
+## Tarball install (fallback)
+
+For environments without `degit` access or when you've been handed a
+`.tar.gz` directly:
 
 ```bash
 tar -xzf taobao-skill-clean-*.tar.gz
-```
-
-This creates a `taobao/` directory in the current path.
-
-### 2. Move it into Claude Code's skills directory
-
-```bash
 mkdir -p ~/.claude/skills
 mv taobao ~/.claude/skills/taobao
 ```
 
-If you'd rather keep the extracted folder where it is and just register it
-(useful when re-extracting newer tarballs over the same path):
+If you'd rather keep the extracted folder where it is and just register it:
 
 ```bash
 ln -s "$(pwd)/taobao" ~/.claude/skills/taobao
 ```
 
-### 3. Restart Claude Code
-
-Quit and relaunch Claude Code (or run `/reload-skills` if your build
-supports it). The skill is registered when Claude Code scans
-`~/.claude/skills/` on startup.
+Then restart Claude Code as above.
 
 ## After install: let the agent finish setup
 
