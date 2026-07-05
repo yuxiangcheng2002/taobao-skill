@@ -238,6 +238,44 @@ would require client-side sign computation against a moving signature).
 - `LOCATION_WHITELIST` is province/SAR-level; city-only listings (rare) are
   not extracted
 
+## Large JSON output — avoid terminal truncation
+`search` / `search-attached` responses include a verbose `networkTap` array
+that can push the JSON past the tool-output limit, truncating the
+`candidates` you actually need. Pass `--brief` to drop the tap at the
+source (works on `search`, `open-result`, `open-href` and their `-attached`
+variants):
+
+```bash
+taobao.sh search-attached "<query>" --brief
+```
+
+Omit `--brief` only when diagnosing walls/session issues — the tap is where
+`SESSION_EXPIRED` and CAPTCHA redirects show up.
+
+For searches you intend to re-rank or reuse, still redirect to a scratchpad
+file: it preserves `href`s for later `open-href` calls (index-stable) and
+avoids re-searching:
+
+```bash
+taobao.sh search-attached "<query>" --brief > q.raw 2>&1
+sed -n '/^{/,$p' q.raw > q.json   # strip npm banner lines before the JSON
+```
+
+## Login detection
+`loggedInLikely` is backed by a signed mtop `getUserSimple` call made from
+the page (authoritative — reports the live session, not the remembered
+`tracknick` cookie). It falls back to the old text+cookie heuristic only
+when the mtop probe is inconclusive (non-taobao origin, missing `_m_h5_tk`
+token, CORS drift). A `probe-attached` reporting `loggedInLikely: false`
+means the user really must re-login in the dedicated window.
+
+## Community sentiment cross-check
+Listing metrics measure fulfilment, not product quality. For
+quality-sensitive "which should I buy" questions, cross-check brands against
+Chinese community sources (Bilibili comment sections via
+`scripts/bilibili-comments.sh`, independent roundups; Zhihu zhuanlan praise
+= soft ad). Full playbook: `references/community-check.md`.
+
 ## Search query refinement rule
 - Start with the shortest product-defining query that should work on Taobao.
 - Preserve meaningful specs/materials/model names.

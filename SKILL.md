@@ -36,6 +36,33 @@ Use the bundled Taobao adapter project inside this skill by default.
    `npm run` scripts.
 5. Work in the project dir, not in this skill folder.
 
+## Community sentiment cross-check
+
+Taobao metrics measure fulfilment, not product quality. When the user asks
+"which should I buy" and the answer hinges on how well the product performs
+(materials, components, tools), read `references/community-check.md` and
+cross-check candidate brands against Chinese community sources — Bilibili
+review-video comment sections first (`scripts/bilibili-comments.sh <BV-id>`
+pulls them without login; locate videos via WebSearch `site:bilibili.com`,
+not the wbi-signed search API). Zhihu zhuanlan praise pieces are usually
+soft ads — weigh them as zero. If community evidence contradicts the
+listing-data ranking, revise the recommendation explicitly rather than
+blending the two.
+
+**Two-phase delivery (default when the check is warranted):** don't make
+the user wait on the community sweep. As soon as the Taobao search/detail
+data is in hand: (1) launch a background subagent (Agent tool,
+`run_in_background: true`) carrying the community-check playbook for the
+shortlisted brands, then (2) immediately present the candidate table to the
+user, with the ranking explicitly marked as **preliminary — listing data
+only, community verdict pending**. When the subagent's notification
+arrives, deliver the verdict as a follow-up: confirm or revise the ranking,
+and say which (if any) preliminary picks the community evidence killed.
+Never present the preliminary ranking as final, and don't hold the table
+back waiting for the sweep. See "Running the check as a background
+subagent" in `references/community-check.md` for the subagent prompt
+template.
+
 ## Initial setup
 
 If this is the user's first time using the skill on this machine — or they say

@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from 'playwright-core';
@@ -78,7 +79,53 @@ async function snapshotText(page: Page): Promise<string> {
   return await page.locator('body').innerText().catch(() => '');
 }
 
+const MTOP_APP_KEY = '12574478';
+
+// Ask mtop who the session user actually is. Returns true/false on a
+// definitive answer, undefined when inconclusive (non-taobao origin, missing
+// token, transport/CORS failure) so the caller can fall back to heuristics.
+// The mtop sign is the documented client-side scheme:
+// md5(`${h5tkToken}&${timestamp}&${appKey}&${data}`).
+async function probeMtopSession(page: Page): Promise<boolean | undefined> {
+  try {
+    const hostname = new URL(page.url()).hostname;
+    if (!/\.(taobao|tmall)\.com$/.test(hostname)) return undefined;
+
+    const cookies = await page.context().cookies();
+    const h5tk = cookies.find((cookie) => cookie.name === '_m_h5_tk')?.value;
+    const token = h5tk?.split('_')[0];
+    if (!token) return undefined;
+
+    const t = Date.now().toString();
+    const data = '{}';
+    const sign = crypto.createHash('md5').update(`${token}&${t}&${MTOP_APP_KEY}&${data}`).digest('hex');
+    const apiUrl =
+      `https://h5api.m.taobao.com/h5/mtop.user.getusersimple/1.0/` +
+      `?jsv=2.7.4&appKey=${MTOP_APP_KEY}&t=${t}&sign=${sign}` +
+      `&api=mtop.user.getUserSimple&v=1.0&dataType=json&type=originaljson&data=${encodeURIComponent(data)}`;
+
+    const body = await page.evaluate(async (url) => {
+      const response = await fetch(url, { credentials: 'include' });
+      return await response.text();
+    }, apiUrl);
+
+    const parsed = JSON.parse(body) as { ret?: unknown; data?: { nick?: string } };
+    const ret = Array.isArray(parsed.ret) ? String(parsed.ret[0] ?? '') : '';
+    if (ret.startsWith('SUCCESS') && parsed.data?.nick) return true;
+    if (ret.includes('SESSION_EXPIRED') || ret.includes('SID_INVALID')) return false;
+    return undefined; // token expired / illegal access — can't tell either way
+  } catch {
+    return undefined;
+  }
+}
+
 async function detectLoggedIn(page: Page): Promise<boolean> {
+  // Authoritative first: mtop knows whether the *session* is alive. The old
+  // cookie heuristic false-positives because `tracknick` is a remembered
+  // nick that survives session expiry.
+  const mtop = await probeMtopSession(page);
+  if (mtop !== undefined) return mtop;
+
   const text = (await snapshotText(page)).toLowerCase();
   if (text.includes('亲，请登录') || text.includes('please log in') || text.includes('session expired')) {
     return false;

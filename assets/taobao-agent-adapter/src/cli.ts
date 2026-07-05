@@ -5,10 +5,14 @@ function usage() {
   doctor [--json]
   public-smoke
   probe-session
-  search <query>
-  open-result <query> <index> [--no-screenshot]
-  open-href <url> [--no-screenshot]
+  search <query> [--brief]
+  open-result <query> <index> [--no-screenshot] [--brief]
+  open-href <url> [--no-screenshot] [--brief]
   download-images <query> <index> [outputDir]
+
+  --brief drops the networkTap array from the printed JSON — the tap is
+  diagnostic bulk that routinely pushes search output past agent tool-output
+  limits, truncating the candidates that actually matter.
 `);
 }
 
@@ -16,6 +20,11 @@ function consumeFlag(args: string[], flag: string): { args: string[]; present: b
   const idx = args.indexOf(flag);
   if (idx === -1) return { args, present: false };
   return { args: [...args.slice(0, idx), ...args.slice(idx + 1)], present: true };
+}
+
+function printResult(result: object, brief: boolean) {
+  const output = brief ? { ...result, networkTap: undefined } : result;
+  console.log(JSON.stringify(output, null, 2));
 }
 
 async function main() {
@@ -51,17 +60,19 @@ async function main() {
     }
 
     case 'search': {
-      const query = rest.join(' ').trim();
+      const { args, present: brief } = consumeFlag(rest, '--brief');
+      const query = args.join(' ').trim();
       if (!query) {
         throw new Error('search requires a query');
       }
       const result = await adapter.search(query);
-      console.log(JSON.stringify(result, null, 2));
+      printResult(result, brief);
       return;
     }
 
     case 'open-result': {
-      const { args, present: noScreenshot } = consumeFlag(rest, '--no-screenshot');
+      const { args: argsAfterBrief, present: brief } = consumeFlag(rest, '--brief');
+      const { args, present: noScreenshot } = consumeFlag(argsAfterBrief, '--no-screenshot');
       if (args.length < 2) {
         throw new Error('open-result requires: <query> <index>');
       }
@@ -72,18 +83,19 @@ async function main() {
         throw new Error('open-result requires a non-empty query and a 1-based index');
       }
       const result = await adapter.openResult(query, index, { screenshot: !noScreenshot });
-      console.log(JSON.stringify(result, null, 2));
+      printResult(result, brief);
       return;
     }
 
     case 'open-href': {
-      const { args, present: noScreenshot } = consumeFlag(rest, '--no-screenshot');
+      const { args: argsAfterBrief, present: brief } = consumeFlag(rest, '--brief');
+      const { args, present: noScreenshot } = consumeFlag(argsAfterBrief, '--no-screenshot');
       const href = args[0]?.trim();
       if (!href || !/^https?:\/\//.test(href)) {
         throw new Error('open-href requires an http(s) url');
       }
       const result = await adapter.openByHref(href, { screenshot: !noScreenshot });
-      console.log(JSON.stringify(result, null, 2));
+      printResult(result, brief);
       return;
     }
 
