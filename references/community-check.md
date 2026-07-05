@@ -19,6 +19,23 @@ failed to form" — listing data alone would have ranked it #2.
   main differentiator.
 - Skip when the purchase is trivially reversible, purely logistical, or the
   user already named the exact product.
+- **Skip for globally-standardized professional parts** — ICs, sensors,
+  MCUs, modules, passives, and similar spec-sheet-defined components.
+  Their performance is set by the datasheet and global reputation, not by
+  Chinese community sentiment; a Bilibili sweep adds almost nothing beyond
+  clone/counterfeit signal, which the search layer already provides
+  (`suspectClone`, silkscreen screenshot verification). For these, do NOT
+  run the Chinese sweep by default. Instead, invite the user to supply
+  context (known-good part numbers, prior usage, application constraints)
+  or ask whether they want a **generic professional search** instead —
+  datasheets, manufacturer errata, EEVblog / Reddit / international forum
+  reports — via ordinary WebSearch, outside this playbook.
+
+The dividing line is *who defines quality*: brand-differentiated commodity
+goods (filament, tools, power supplies, printed/consumer products) are
+judged by user experience → Chinese community check applies; standardized
+engineering parts are judged by spec compliance and authenticity → clone
+detection + professional sources apply.
 
 ## Source map — what works, what doesn't
 

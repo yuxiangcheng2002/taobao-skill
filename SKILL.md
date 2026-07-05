@@ -40,7 +40,8 @@ Use the bundled Taobao adapter project inside this skill by default.
 
 Taobao metrics measure fulfilment, not product quality. When the user asks
 "which should I buy" and the answer hinges on how well the product performs
-(materials, components, tools), read `references/community-check.md` and
+(materials, tools, brand-differentiated commodity goods), read
+`references/community-check.md` and
 cross-check candidate brands against Chinese community sources — Bilibili
 review-video comment sections first (`scripts/bilibili-comments.sh <BV-id>`
 pulls them without login; locate videos via WebSearch `site:bilibili.com`,
@@ -48,6 +49,12 @@ not the wbi-signed search API). Zhihu zhuanlan praise pieces are usually
 soft ads — weigh them as zero. If community evidence contradicts the
 listing-data ranking, revise the recommendation explicitly rather than
 blending the two.
+
+Exception: globally-standardized professional parts (ICs, sensors, MCUs,
+passives) are judged by datasheet compliance and authenticity, not Chinese
+community sentiment — skip the sweep, rely on `suspectClone` + screenshot
+verification, and offer the user a generic professional search (datasheets,
+errata, international forums) instead. Details in the reference.
 
 **Two-phase delivery (default when the check is warranted):** don't make
 the user wait on the community sweep. As soon as the Taobao search/detail
