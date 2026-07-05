@@ -10,6 +10,13 @@ sources. A canonical failure mode this catches: a 14-year Tmall shop with
 70k+ sales whose product a reviewer's professional test model "completely
 failed to form" — listing data alone would have ranked it #2.
 
+> **Runtime portability**: tool names in this playbook use Claude Code's
+> vocabulary (WebSearch, Agent tool, `run_in_background`). On other
+> runtimes (e.g. Codex), substitute whatever web-search tool is available,
+> and if there is no background-subagent mechanism, run the check
+> synchronously — but still present the preliminary Taobao table *before*
+> starting the sweep, so the user isn't blocked on it.
+
 ## When to run this
 
 - The user asks "which should I buy" and the answer depends on product

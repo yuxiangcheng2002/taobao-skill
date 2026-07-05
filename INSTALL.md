@@ -13,7 +13,9 @@ flow still works — see "Tarball install" below.
 
 ## Prerequisites
 
-- **Claude Code** installed and working.
+- **Claude Code** or **Codex** installed and working. (The skill was built
+  against Claude Code; Codex reads the same `SKILL.md` format — install
+  under `$CODEX_HOME/skills` instead, see below.)
 - **Node.js 22+** (`node -v` to check; `brew install node` on macOS,
   distro package on Linux, [nodejs.org](https://nodejs.org) on Windows).
 - **A Chromium-family browser** — Google Chrome, Microsoft Edge, or Brave.
@@ -23,9 +25,18 @@ flow still works — see "Tarball install" below.
 
 ## Recommended install — one command via `degit`
 
+Claude Code:
+
 ```bash
 mkdir -p ~/.claude/skills
 npx -y degit yuxiangcheng2002/taobao-skill ~/.claude/skills/taobao
+```
+
+Codex:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+npx -y degit yuxiangcheng2002/taobao-skill "${CODEX_HOME:-$HOME/.codex}/skills/taobao"
 ```
 
 `degit` (no `npm install` of the package itself) just fetches the latest

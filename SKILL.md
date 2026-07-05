@@ -58,8 +58,10 @@ errata, international forums) instead. Details in the reference.
 
 **Two-phase delivery (default when the check is warranted):** don't make
 the user wait on the community sweep. As soon as the Taobao search/detail
-data is in hand: (1) launch a background subagent (Agent tool,
-`run_in_background: true`) carrying the community-check playbook for the
+data is in hand: (1) launch a background subagent (on Claude Code: the
+Agent tool with `run_in_background: true`; on runtimes without a
+background-subagent mechanism, run the sweep synchronously after step 2)
+carrying the community-check playbook for the
 shortlisted brands, then (2) immediately present the candidate table to the
 user, with the ranking explicitly marked as **preliminary — listing data
 only, community verdict pending**. When the subagent's notification

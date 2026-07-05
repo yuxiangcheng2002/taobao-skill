@@ -72,14 +72,22 @@ a screenshot — never solved automatically.
 
 ## Quick start
 
-Install with one command via [`degit`](https://github.com/Rich-Harris/degit):
+Install with one command via [`degit`](https://github.com/Rich-Harris/degit).
+Claude Code:
 
 ```bash
 mkdir -p ~/.claude/skills
 npx -y degit yuxiangcheng2002/taobao-skill ~/.claude/skills/taobao
 ```
 
-Restart Claude Code, then ask for anything Taobao-shaped — *"set up
+Codex:
+
+```bash
+mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
+npx -y degit yuxiangcheng2002/taobao-skill "${CODEX_HOME:-$HOME/.codex}/skills/taobao"
+```
+
+Restart the agent runtime, then ask for anything Taobao-shaped — *"set up
 taobao"*, *"search Taobao for ESP32"*. The agent will:
 
 1. Run `./scripts/taobao.sh setup` — verifies Node, npm, browser, Gatekeeper.

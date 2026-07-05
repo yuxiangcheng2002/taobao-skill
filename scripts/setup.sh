@@ -478,22 +478,32 @@ prompt_browser_selection() {
 prompt_browser_selection
 
 header "Skill installation"
-TARGET="$HOME/.claude/skills/taobao"
-if [[ -L "$TARGET" ]]; then
-  RESOLVED="$(cd "$TARGET" 2>/dev/null && pwd -P || true)"
-  SKILL_REAL="$(cd "$SKILL_DIR" && pwd -P)"
-  if [[ "$RESOLVED" == "$SKILL_REAL" ]]; then
-    ok "symlinked: $TARGET → $SKILL_REAL"
-  else
-    warn "symlink exists but points elsewhere:"
-    info "  $TARGET → $RESOLVED"
-    info "  expected: $SKILL_REAL"
+# Accept either runtime's skill directory: Claude Code (~/.claude/skills)
+# or Codex ($CODEX_HOME/skills, default ~/.codex/skills). Installed in at
+# least one place => ok.
+SKILL_REAL="$(cd "$SKILL_DIR" && pwd -P)"
+TARGETS=("$HOME/.claude/skills/taobao" "${CODEX_HOME:-$HOME/.codex}/skills/taobao")
+INSTALLED=0
+for TARGET in "${TARGETS[@]}"; do
+  if [[ -L "$TARGET" ]]; then
+    RESOLVED="$(cd "$TARGET" 2>/dev/null && pwd -P || true)"
+    if [[ "$RESOLVED" == "$SKILL_REAL" ]]; then
+      ok "symlinked: $TARGET → $SKILL_REAL"
+    else
+      warn "symlink exists but points elsewhere:"
+      info "  $TARGET → $RESOLVED"
+      info "  expected: $SKILL_REAL"
+    fi
+    INSTALLED=1
+  elif [[ -d "$TARGET" ]]; then
+    warn "$TARGET exists but is not a symlink (copied install, updates won't propagate)"
+    INSTALLED=1
   fi
-elif [[ -d "$TARGET" ]]; then
-  warn "$TARGET exists but is not a symlink (copied install, updates won't propagate)"
-else
-  fail "not installed at $TARGET"
-  info "run: ln -s \"$SKILL_DIR\" \"$TARGET\""
+done
+if (( ! INSTALLED )); then
+  fail "not installed in any skill directory"
+  info "Claude Code: ln -s \"$SKILL_DIR\" \"$HOME/.claude/skills/taobao\""
+  info "Codex:       ln -s \"$SKILL_DIR\" \"${CODEX_HOME:-$HOME/.codex}/skills/taobao\""
   FAILED=1
 fi
 

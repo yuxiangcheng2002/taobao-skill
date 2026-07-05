@@ -1,0 +1,6 @@
+# Codex UI metadata (optional — the skill works from SKILL.md alone).
+# Schema: https://developers.openai.com/codex/skills
+interface:
+  display_name: "Taobao"
+  short_description: "Search Taobao, extract structured product data, verify sellers, and cross-check community sentiment before buying."
+  default_prompt: "Search Taobao for "
