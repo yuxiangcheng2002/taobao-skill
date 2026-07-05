@@ -2,13 +2,14 @@
 
 # taobao
 
-**Agent-native Taobao sourcing — structured listings, trust signals, and
-community-verified buying decisions.**
+**Making an AI agent a competent Taobao operator — persistent login,
+structured extraction, and walls surfaced instead of fought.**
 
 Search, inspect, and extract structured product data from
 `s.taobao.com` / `item.taobao.com` / `detail.tmall.com` through a
 persistent, logged-in Chromium profile — no brittle CSS selectors,
-no headless-detection roulette.
+no headless-detection roulette. Trust signals and community-verified
+buying decisions layer on top.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-adapter-3178C6?logo=typescript&logoColor=white)](assets/taobao-agent-adapter)
 [![Playwright](https://img.shields.io/badge/Playwright-CDP%20attach-2EAD33?logo=playwright&logoColor=white)](assets/taobao-agent-adapter/src/taobao/browser.ts)
@@ -22,14 +23,39 @@ no headless-detection roulette.
 
 ## What it focuses on
 
-The skill is built around one observation: **Taobao listing metrics measure
-fulfilment, not product quality.** A shop can ship a mediocre product
-quickly and politely for years and keep a 4.8+ rating. So the skill layers
-three kinds of evidence, each answering a different question:
+**The core problem is making an agent a competent Taobao operator at all.**
+Taobao is actively hostile to automation: login walls, slider CAPTCHAs,
+headless-browser detection, personalized re-ranking between identical
+queries, and an SSR payload that drifts without notice. Most scraping
+approaches die within a week. The skill's answer is a set of deliberate
+mechanics:
+
+- **A persistent, logged-in Chromium profile** attached over CDP — the
+  agent drives the user's real, visible browser session instead of
+  fighting headless detection, and the login survives across sessions
+  and re-installs.
+- **SSR-first extraction** — detail pages are read from the same
+  `__ICE_APP_CONTEXT__` data the page rendered from, not from CSS
+  selectors that break on every UI experiment; DOM scraping is only the
+  fallback, and `ssrSource` tells you which path produced the data.
+- **Walls surfaced, never fought** — CAPTCHA / login walls short-circuit
+  with `requiresUserAction: true` and a screenshot for the user, instead
+  of the agent spinning on selectors that will never resolve.
+- **Agent-sized structured output** — typed candidate fields the agent
+  can filter and score without re-parsing raw text, `--brief` to keep a
+  46-candidate response inside tool-output limits, `href`-stable
+  navigation because result indices re-rank between calls.
+
+Everything else builds on that foundation. Because once search and
+detail extraction are reliable, the skill can also address a second
+observation: **listing metrics measure fulfilment, not product quality.**
+A shop can ship a mediocre product quickly and politely for years and
+keep a 4.8+ rating. So on top of extraction, the skill layers two more
+kinds of evidence:
 
 | Layer | Question it answers | Mechanism |
 |---|---|---|
-| **Structured extraction** | What is on offer, at what price, from whom? | SSR-first parsing (`__ICE_APP_CONTEXT__`), DOM fallback, typed candidate fields |
+| **Structured extraction** (the foundation) | What is on offer, at what price, from whom? | SSR-first parsing, DOM fallback, typed candidate fields |
 | **Trust & authenticity signals** | Can I trust this listing? | `platform` tier, `previouslyBought`, `shopAgeYears`, seller scorecard, `suspectClone` detection, full-page screenshots for silkscreen verification |
 | **Community sentiment cross-check** | Is the product actually good? | Bilibili review-video comment sections, independent roundups — run as a background subagent so it never blocks the answer |
 
