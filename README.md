@@ -1,160 +1,184 @@
+<div align="center">
+
 # taobao
 
-Agent-friendly Taobao adapter. Search, inspect, and extract structured product
-data from `s.taobao.com` / `item.taobao.com` / `detail.tmall.com` through a
-persistent, logged-in Chromium profile — without writing or maintaining
-brittle CSS selectors.
+**Agent-native Taobao sourcing — structured listings, trust signals, and
+community-verified buying decisions.**
 
-This is a Claude Code skill. It bundles a TypeScript Playwright adapter,
-exposes it through a thin shell wrapper, and ships first-time setup,
-attached-browser workflow, and structured responses agents can score and
-filter without re-parsing raw text.
+Search, inspect, and extract structured product data from
+`s.taobao.com` / `item.taobao.com` / `detail.tmall.com` through a
+persistent, logged-in Chromium profile — no brittle CSS selectors,
+no headless-detection roulette.
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-adapter-3178C6?logo=typescript&logoColor=white)](assets/taobao-agent-adapter)
+[![Playwright](https://img.shields.io/badge/Playwright-CDP%20attach-2EAD33?logo=playwright&logoColor=white)](assets/taobao-agent-adapter/src/taobao/browser.ts)
+[![Node](https://img.shields.io/badge/Node-%E2%89%A5%2022-339933?logo=nodedotjs&logoColor=white)](#development)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-555)](references/browsers.md)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-skill-D97757)](SKILL.md)
+
+</div>
+
+---
+
+## What it focuses on
+
+The skill is built around one observation: **Taobao listing metrics measure
+fulfilment, not product quality.** A shop can ship a mediocre product
+quickly and politely for years and keep a 4.8+ rating. So the skill layers
+three kinds of evidence, each answering a different question:
+
+| Layer | Question it answers | Mechanism |
+|---|---|---|
+| **Structured extraction** | What is on offer, at what price, from whom? | SSR-first parsing (`__ICE_APP_CONTEXT__`), DOM fallback, typed candidate fields |
+| **Trust & authenticity signals** | Can I trust this listing? | `platform` tier, `previouslyBought`, `shopAgeYears`, seller scorecard, `suspectClone` detection, full-page screenshots for silkscreen verification |
+| **Community sentiment cross-check** | Is the product actually good? | Bilibili review-video comment sections, independent roundups — run as a background subagent so it never blocks the answer |
+
+Which layers apply depends on *who defines quality*:
+
+```mermaid
+flowchart LR
+    Q["User asks:<br/>which should I buy?"] --> D{Who defines<br/>quality?}
+    D -->|"Spec sheet<br/>(ICs, sensors, MCUs)"| P["Clone detection +<br/>screenshot verification<br/><i>offer professional search</i>"]
+    D -->|"User experience<br/>(filament, tools, commodities)"| C["Community check<br/>(background subagent)"]
+    C --> T["Preliminary table<br/>shown immediately"]
+    C --> V["Community verdict<br/>follows up — confirms<br/>or kills picks"]
+```
+
+The two-phase delivery matters: the Taobao table is ready in seconds, the
+community sweep costs minutes. The agent presents the candidate table
+immediately (marked *preliminary*), launches the sweep in the background,
+and follows up with the verdict — including picks the community evidence
+killed and dark-horse brands the search never surfaced.
 
 ## When to use it
 
-Reach for this skill when you need to:
-
-- **Source electronic components** by part number — see live offers,
-  shop reputation, prices, available stock, and verify package /
-  silkscreen via screenshots before committing.
-- **Compare vendors** for the same SKU across price, shop credibility,
+- **Source electronic components** by part number — live offers, shop
+  reputation, prices, stock, and package/silkscreen verification via
+  screenshots before committing.
+- **Buy brand-differentiated commodities** (3D-printing filament, tools,
+  power supplies) — where listing data alone routinely ranks a
+  community-condemned product #2, and the cross-check catches it.
+- **Compare vendors** for the same SKU across price, credibility,
   delivery, and counterfeit risk.
-- **Inspect a specific listing** by URL — open it, pull structured price
-  / shop / SKU / image data, and persist a full-page screenshot.
-- **Triage Chinese-clone parts** — the adapter flags listings whose
-  titles carry domestic-clone vendor suffixes (e.g. `-HXY`, `-CMSEMICON`)
-  or marketing tells (`平替`, `国产替代`, `替代品`).
+- **Inspect a specific listing** by URL — structured price / shop / SKU /
+  image data plus a persistent full-page screenshot.
+- **Triage Chinese-clone parts** — titles carrying domestic-clone vendor
+  suffixes (`-HXY`, `-CMSEMICON`) or marketing tells (`平替`,
+  `国产替代`) are flagged automatically.
 
 It is *not* a scraping framework, an anti-bot toolkit, or a synchronous
-storefront API. CAPTCHA / verification walls are handled by surfacing
-them to the user — never by automated solving.
+storefront API. CAPTCHA / verification walls are surfaced to the user with
+a screenshot — never solved automatically.
 
 ## Quick start
 
-Install the skill (one command via [`degit`](https://github.com/Rich-Harris/degit)):
+Install with one command via [`degit`](https://github.com/Rich-Harris/degit):
 
 ```bash
 mkdir -p ~/.claude/skills
 npx -y degit yuxiangcheng2002/taobao-skill ~/.claude/skills/taobao
 ```
 
-Restart Claude Code so it registers the new skill. From any session, ask
-Claude something like "set up taobao" or "search Taobao for ESP32" and
-the agent will:
+Restart Claude Code, then ask for anything Taobao-shaped — *"set up
+taobao"*, *"search Taobao for ESP32"*. The agent will:
 
-1. Run `./scripts/taobao.sh setup` (verifies Node, npm, browser, Gatekeeper).
-2. Run `./scripts/taobao.sh browser-start` — pauses to ask you to log
-   into Taobao in the dedicated window once.
-3. Run `./scripts/taobao.sh probe-attached` to confirm the session is live.
-4. Proceed with whatever you actually asked for.
+1. Run `./scripts/taobao.sh setup` — verifies Node, npm, browser, Gatekeeper.
+2. Run `./scripts/taobao.sh browser-start` — pauses once for you to log
+   into Taobao in the dedicated window.
+3. Run `./scripts/taobao.sh probe-attached` — confirms the session is live.
+4. Proceed with what you actually asked for.
 
-For full install details (including offline / tarball fallback) see
-[`INSTALL.md`](INSTALL.md). For per-OS browser-trust quirks see
-[`references/browsers.md`](references/browsers.md). For the agent's
-runtime guidance see [`SKILL.md`](SKILL.md) and
+Full install details (offline / tarball fallback): [`INSTALL.md`](INSTALL.md).
+Per-OS browser-trust quirks: [`references/browsers.md`](references/browsers.md).
+Agent runtime guidance: [`SKILL.md`](SKILL.md) and
 [`references/workflow.md`](references/workflow.md).
-
-## Architecture
-
-The skill folder holds **only code and documentation** — read-only,
-re-extractable, replaceable. All user-generated state (login cookies,
-screenshots, browser config) lives under `~/.taobao-agent/`, isolated
-from the skill.
-
-```
-~/.claude/skills/taobao/                  (the skill — code + docs only)
-├── SKILL.md                              # Skill manifest — agent-facing summary
-├── README.md                             # This file
-├── INSTALL.md                            # Bootstrap steps for tarball recipients
-├── scripts/
-│   ├── taobao.sh                         # Wrapper: cd into adapter, run npm scripts
-│   └── setup.sh                          # First-time environment / browser picker
-├── references/
-│   ├── workflow.md                       # Agent runbook (actions, fields, fallbacks)
-│   └── browsers.md                       # Per-OS install / trust notes
-└── assets/taobao-agent-adapter/          # Bundled TypeScript adapter
-    ├── src/
-    │   ├── cli.ts                        # CLI entrypoint
-    │   └── taobao/
-    │       ├── adapter.ts                # search / openResult / openByHref / downloadImages
-    │       ├── browser.ts                # CDP attach + persistent-context launch
-    │       ├── parser.ts                 # Search-candidate field extraction + clone detection
-    │       ├── network.ts                # Best-effort response capture
-    │       ├── state.ts                  # Page-state inference (home / search / detail / wall)
-    │       ├── config.ts                 # Resolves project root, data dir, browser path
-    │       └── types.ts                  # Shared response shapes
-    └── scripts/remote-browser.sh         # Start / stop / status the dedicated Chromium window
-
-~/.taobao-agent/                          (user data — survives skill re-installs)
-├── config.sh                             # Persisted CHROMIUM_PATH (written by setup)
-├── profiles/taobao-chromium/             # Persistent browser profile — login lives here
-├── playwright/                           # remote-browser.sh launch log
-└── downloads/
-    ├── screenshots/                      # PNGs from open-result / open-href
-    └── galleries/                        # image dumps from download-images
-```
-
-The skill side stays thin: the wrapper, setup, references. All adapter
-logic — Playwright, CDP, parsers — sits inside
-`assets/taobao-agent-adapter/`. `TAOBAO_PROJECT_DIR` lets you point at an
-external checkout when iterating on the adapter; `TAOBAO_DATA_DIR`
-overrides where user state lives.
-
-## Setup
-
-The skill uses a **dedicated Chromium profile** so a manual login persists
-across sessions. The first-time path is:
-
-1. **`./scripts/taobao.sh setup`** — checks Node ≥ 22, npm, curl, the
-   skill symlink, the bundled adapter, and a Chromium-family browser.
-   Auto-discovers Chrome / Edge / Brave / cached Playwright Chromium and
-   persists the choice in `.taobao-config.sh`. Re-runnable.
-2. **macOS quarantine handling** — Chrome / Edge / Brave installed via
-   Homebrew cask are tagged with `com.apple.quarantine`, which silently
-   prevents `--remote-debugging-port` from binding. Setup detects this
-   and prints the exact `sudo xattr -dr com.apple.quarantine …` command;
-   run it once.
-3. **`./scripts/taobao.sh doctor`** — first build (`tsc`) + an
-   environment-summary JSON (platform, paths, headless flag, profile
-   exists?).
-4. **`./scripts/taobao.sh browser-start`** — launches the dedicated
-   Chromium window with `--remote-debugging-port=9222` and the persistent
-   profile under `assets/taobao-agent-adapter/.profiles/taobao-chromium/`.
-   Log into Taobao in this window. Leave it open.
-5. **`./scripts/taobao.sh probe-attached`** — confirms the adapter can
-   attach to port 9222 and that `loggedInLikely: true`.
-
-After step 5 the skill is ready. Subsequent sessions skip 1 and 4 unless
-the profile loses its session.
 
 ## Action reference
 
 All actions go through `./scripts/taobao.sh <action> [args...]`. The
-canonical command reference (with full code-block examples and per-action
-caveats) lives in [`references/workflow.md`](references/workflow.md);
-the table below is the at-a-glance index.
+canonical reference with per-action caveats lives in
+[`references/workflow.md`](references/workflow.md).
 
 | Action | Purpose |
 |---|---|
 | `setup` | First-time check / browser picker (TTY menu or `--browser <path>`) |
-| `doctor` | Build + JSON env summary |
-| `test` | Run the unit tests under `src/test/` |
+| `doctor` | Build + JSON environment summary |
+| `test` | Run the adapter unit tests |
 | `browser-start` / `-status` / `-stop` | Lifecycle of the dedicated Chromium |
-| `probe` / `probe-attached` | Visit `taobao.com` and report state + login |
-| `search` / `search-attached <query>` | Search and return up to 10 structured candidates |
+| `probe` / `probe-attached` | Visit `taobao.com`, report state + authoritative login status |
+| `search` / `search-attached <query> [--brief]` | Structured search candidates |
 | `open-result` / `-attached <query> <index>` | Re-search and open the Nth candidate |
-| `open-href` / `-attached <url>` | Open a specific URL (index-stable, preferred) |
-| `download-images` / `-attached <query> <index>` | Save the listing's gallery to `downloads/` |
+| `open-href` / `-attached <url>` | Open a specific URL — index-stable, preferred |
+| `download-images` / `-attached <query> <index>` | Save the listing's gallery |
 
-The `*-attached` variants reuse the persistent logged-in profile via CDP.
-Non-attached variants spin up a fresh persistent context for one-off use.
+Two flags matter in agent contexts:
 
-### `search` response
+- **`--brief`** (`search`, `open-result`, `open-href`) drops the verbose
+  `networkTap` diagnostics from the JSON — a 46-candidate search shrinks
+  to ~13 KB instead of blowing past tool-output limits and truncating the
+  candidates that matter. Omit it only when diagnosing session/wall
+  issues, since the tap is where `SESSION_EXPIRED` and CAPTCHA redirects
+  show up.
+- **`--no-screenshot`** (`open-result`, `open-href`) skips the full-page
+  PNG (~0.5–1.5 MB per call) when only structured fields are needed.
+  Keep screenshots **on** for ICs — silkscreen verification is
+  non-negotiable there.
 
-The canonical schema — including fallback behaviour and recent-change
-notes — is in [`references/workflow.md`](references/workflow.md#structured-fields-on-search-candidates).
-The summary below shows the field set at-a-glance. Each entry in
-`candidates[]`:
+And one standalone helper:
+
+```bash
+./scripts/bilibili-comments.sh <BV-id> [max-comments]
+```
+
+pulls the top comments (plus nested replies, sorted by likes) of any
+Bilibili video without login — the raw material of the community check.
+Locate videos with a web search scoped to `site:bilibili.com`; the
+Bilibili search API requires wbi signing and is deliberately not used.
+
+## Community sentiment cross-check
+
+The playbook lives in
+[`references/community-check.md`](references/community-check.md). The short
+version:
+
+- **Trigger** — the user asks *which to buy* and the answer hinges on how
+  the product performs (materials, tools, commodities with brand-level
+  quality differences). Price-only or logistics-only questions skip it.
+- **Exception** — globally-standardized professional parts (ICs, sensors,
+  MCUs, passives) are judged by datasheet compliance and authenticity,
+  not Chinese community sentiment. For those the skill relies on
+  `suspectClone` + screenshot verification and offers a generic
+  professional search (datasheets, errata, international forums) instead.
+- **Sources, ranked** — Bilibili comment sections first (owner long-term
+  reports and UP主 replies carry the most weight), independent 口碑汇总
+  roundups second. Zhihu zhuanlan praise pieces are treated as soft ads
+  and weighted zero.
+- **Delivery** — run as a background subagent; the preliminary Taobao
+  table is never held back, and the verdict follows up explicitly.
+  When community evidence contradicts the listing-data ranking, the
+  recommendation is revised out loud — not quietly blended.
+
+<details>
+<summary><b>Case study: why this layer exists</b></summary>
+
+A domestic PETG filament search surfaced a 14-year Tmall shop with 70k+
+sales and a 5.0 shop rating — #2 by listing data. The community check then
+found the reviewer of a seven-brand comparison replying, in his own
+comment section, that this brand's professional test model *"完全不能成型"*
+(completely failed to form). Meanwhile the comment sections repeatedly
+nominated a dark-horse brand no listing query had surfaced. The final
+recommendation inverted the listing-data ranking — and said so explicitly.
+
+</details>
+
+## Response schemas
+
+<details>
+<summary><b><code>search</code> — candidate fields</b></summary>
+
+Canonical schema and fallback behaviour:
+[`references/workflow.md`](references/workflow.md#structured-fields-on-search-candidates).
+Each entry in `candidates[]`:
 
 | Field | Source | Notes |
 |---|---|---|
@@ -169,14 +193,17 @@ The summary below shows the field set at-a-glance. Each entry in
 | `thumbnailUrl` | DOM img | Search-result thumbnail |
 | `rawText` | Full source string | For agents that want their own parsing |
 
-Top-level: `state`, `url`, `loggedInLikely`, `candidateCount`, `networkTap`,
-plus `screenshotPath` + `requiresUserAction:true` when a CAPTCHA / login
-wall intercepts the request.
+Top-level: `state`, `url`, `loggedInLikely`, `candidateCount`,
+`networkTap` (omitted with `--brief`), plus `screenshotPath` +
+`requiresUserAction: true` when a CAPTCHA / login wall intercepts.
 
-### `open-result` / `open-href` response
+</details>
 
-Full schema (including SSR-vs-DOM fallback rules and the
-`ICE_CONTEXT_PATH_DRIFT_SUSPECTED` warning condition) is in
+<details>
+<summary><b><code>open-result</code> / <code>open-href</code> — detail fields</b></summary>
+
+Full schema including SSR-vs-DOM fallback rules and the
+`ICE_CONTEXT_PATH_DRIFT_SUSPECTED` warning condition:
 [`references/workflow.md`](references/workflow.md#ssr-injected-detail-data-__ice_app_context__).
 `detail` carries:
 
@@ -191,165 +218,191 @@ Full schema (including SSR-vs-DOM fallback rules and the
 | `imageUrls` | DOM `<img>` scan | Full set; `productImageUrls` is the curated subset |
 | `priceTiers`, `moq` | rendered text | Best-effort, often empty |
 | `screenshotPath` | Playwright | Full-page PNG under `downloads/screenshots/` |
-| `ssrSource` | Adapter | `"ice-context"` when SSR data drove primary fields, else `"dom"` |
-| `warnings` | Adapter | Non-fatal advisories — currently `ICE_CONTEXT_PATH_DRIFT_SUSPECTED` when a detail-host URL fell back to DOM scraping (signals Taobao SSR drift) |
-| `requiresUserAction` | state inference | True when verification / login wall intercepted |
+| `ssrSource` | Adapter | `"ice-context"` when SSR drove primary fields, else `"dom"` |
+| `warnings` | Adapter | Non-fatal advisories, e.g. SSR-drift suspicion |
+| `requiresUserAction` | state inference | True when a verification / login wall intercepted |
 | `rawTextPreview` | `body.innerText()` | First 1200 chars, for ad-hoc parsing |
-
-Pass `--no-screenshot` to skip the PNG when only structured fields are
-needed (saves ~0.5–1.5 MB per call).
 
 `picked` mirrors the search-candidate shape so callers can treat
 `open-href` and `open-result` symmetrically.
 
-## Worked example: sourcing an IC
+</details>
 
-Suppose you want a TDK ICM-42688-P bare IC. Search:
+## Worked examples
+
+### Sourcing an IC (spec-sheet-defined — no community sweep)
 
 ```bash
-./scripts/taobao.sh search-attached "ICM-42688-P"
+./scripts/taobao.sh search-attached "ICM-42688-P" --brief
 ```
 
-A typical result set will surface several distinct buying patterns the
-structured fields make explicit:
+The structured fields make the buying patterns explicit:
 
-- A **Tmall flagship** listing — `platform: 'tmall-flagship'`,
-  `tags` typically include `假一赔四`, `退货宝`, sometimes `可开发票`.
-  Highest platform-guarantee tier; the right pick when you need
-  invoicing or counterfeit-indemnity coverage. Prices run ~30–60%
-  above the cheapest item.taobao stalls.
-- An **item.taobao.com** listing with `previouslyBought: true` — Taobao
-  has tagged the shop as one you've bought from before. Lower price
-  than the flagship, real personalized trust signal.
-- A **clone** listing — `suspectClone: true`, `suspectReason:
-  'suffix:-HXY'`. The `-HXY` suffix is the 华轩阳 domestic clone of
-  TDK's ICM IMUs (LGA-14 package vs TDK's QFN-14, ¥7–12 vs ¥30+).
-  Register-similar but drift / noise / temperature behaviour are not
-  1:1. Treat as a second-source part, not a drop-in.
+- **Tmall flagship** — `platform: 'tmall-flagship'`, tags like `假一赔四`
+  and `可开发票`. Highest guarantee tier; the pick when invoicing or
+  counterfeit indemnity matters. Runs ~30–60% above the cheapest stalls.
+- **Previously-bought shop** — `previouslyBought: true`; lower price,
+  real personalized trust signal.
+- **Clone** — `suspectClone: true`, `suspectReason: 'suffix:-HXY'`.
+  The `-HXY` suffix marks the 华轩阳 domestic clone of TDK's ICM IMUs
+  (LGA-14 vs TDK's QFN-14, ¥7–12 vs ¥30+). Register-similar, but drift /
+  noise / temperature behaviour are not 1:1 — a second source, not a
+  drop-in.
 
-Open a candidate and verify visually:
+Then open the pick **with** a screenshot and read the PNG to confirm the
+package and silkscreen match the datasheet (`I428P` / `1428P` on QFN-14):
 
 ```bash
 ./scripts/taobao.sh open-href-attached "<href from search candidate>"
 ```
 
-The detail response will carry `price`, `shop`, `quantity`,
-`sellerEvaluates` (a three-row scorecard from
-`seller.evaluates` — 宝贝描述 / 卖家服务 / 物流服务), and a
-full-page `screenshotPath`. Read the PNG to confirm the package and
-silkscreen match the TDK datasheet (`I428P` / `1428P` on QFN-14) — for
-ICs this visual check is the difference between trusting the listing
-and not.
+### Buying filament (experience-defined — community sweep applies)
 
-Vendor-specific trust calls (which Tmall flagships are best for ST,
-which item.taobao stalls have given you good batches before) belong in
-`~/.taobao-agent/PREFERENCES.md` — outside the skill, per-user.
+Same search mechanics, different verification: the agent presents the
+candidate table immediately (marked preliminary), spawns the background
+community check for the shortlisted brands, and follows up minutes later
+with which picks survived the comment sections — no extra user prompt
+needed.
+
+Vendor-specific trust calls (which flagships are best for which brands,
+which stalls shipped good batches) belong in
+`~/.taobao-agent/PREFERENCES.md` — per-user, outside the skill.
+
+## Architecture
+
+The skill folder holds **only code and documentation** — read-only,
+re-extractable, replaceable. All user state (login cookies, screenshots,
+browser config, personal preferences) lives under `~/.taobao-agent/`.
+
+<details>
+<summary><b>Directory layout</b></summary>
+
+```
+~/.claude/skills/taobao/                  (the skill — code + docs only)
+├── SKILL.md                              # Skill manifest — agent-facing summary
+├── README.md                             # This file
+├── INSTALL.md                            # Bootstrap steps for tarball recipients
+├── scripts/
+│   ├── taobao.sh                         # Wrapper: cd into adapter, run npm scripts
+│   ├── setup.sh                          # First-time environment / browser picker
+│   └── bilibili-comments.sh              # Community check: pull video comments, no login
+├── references/
+│   ├── workflow.md                       # Agent runbook (actions, fields, fallbacks)
+│   ├── community-check.md                # Sentiment cross-check playbook + subagent template
+│   └── browsers.md                       # Per-OS install / trust notes
+└── assets/taobao-agent-adapter/          # Bundled TypeScript adapter
+    ├── src/
+    │   ├── cli.ts                        # CLI entrypoint (--brief, --no-screenshot)
+    │   └── taobao/
+    │       ├── adapter.ts                # search / openResult / openByHref / mtop login probe
+    │       ├── browser.ts                # CDP attach + persistent-context launch
+    │       ├── parser.ts                 # Candidate field extraction + clone detection
+    │       ├── network.ts                # Best-effort response capture
+    │       ├── state.ts                  # Page-state inference (home / search / detail / wall)
+    │       ├── config.ts                 # Project root, data dir, browser path
+    │       └── types.ts                  # Shared response shapes
+    └── scripts/remote-browser.sh         # Start / stop / status the dedicated Chromium
+
+~/.taobao-agent/                          (user data — survives skill re-installs)
+├── config.sh                             # Persisted CHROMIUM_PATH (written by setup)
+├── PREFERENCES.md                        # Per-user vendors, defaults, learned heuristics
+├── profiles/taobao-chromium/             # Persistent browser profile — login lives here
+├── playwright/                           # remote-browser.sh launch log
+└── downloads/
+    ├── screenshots/                      # PNGs from open-result / open-href
+    └── galleries/                        # Image dumps from download-images
+```
+
+</details>
+
+`TAOBAO_PROJECT_DIR` points at an external adapter checkout when iterating;
+`TAOBAO_DATA_DIR` overrides where user state lives.
 
 ## Design decisions worth knowing
 
-- **User state lives under `~/.taobao-agent/`, not in the skill folder** —
-  login cookies, screenshots, image dumps, and the persisted browser
-  path all sit outside the skill so the skill itself is read-only and
-  re-extractable. Override the location with `TAOBAO_DATA_DIR`. Setup
-  auto-migrates from the pre-2026-05 in-skill layout if it finds
-  legacy paths on first run.
-- **Persistent logged-in profile over re-login** — Taobao session
-  cookies live in `~/.taobao-agent/profiles/taobao-chromium/`. Re-login
-  only when the setup report flags the profile as missing session data.
-- **Attached-browser via CDP, not headless** — keeps the user logged in,
-  avoids triggering Taobao's headless-detection, and makes
-  CAPTCHA / verification visually obvious.
+- **Authoritative login detection via signed mtop call** — the adapter
+  asks `mtop.user.getUserSimple` (standard client-side
+  `md5(token&t&appKey&data)` sign) from the page context whether the
+  *session* is alive. The old cookie heuristic false-positived because
+  `tracknick` is a remembered nick that survives session expiry. The
+  heuristic remains only as a fallback when the mtop probe is
+  inconclusive.
+- **User state under `~/.taobao-agent/`, not in the skill folder** — the
+  skill stays read-only and re-extractable; login state survives
+  re-installs. Setup auto-migrates pre-2026-05 in-skill layouts.
+- **Attached browser via CDP, not headless** — keeps the user logged in,
+  avoids headless-detection, makes CAPTCHAs visually obvious.
 - **`open-href` over `open-result`** — search results re-rank between
-  calls (ad slots, personalization). The candidate's `href` is stable;
-  the candidate's index is not. Use `open-href` whenever you already
-  have a target URL.
-- **SSR `__ICE_APP_CONTEXT__` over DOM scraping** — Taobao's 2025
-  detail pages embed canonical product data at
-  `loaderData.home.data.res`. Reading from there gives the same data
-  the page rendered from. DOM scraping remains as a fallback when the
-  shape changes.
-- **Structured search-candidate fields over rawText** — agents can
-  filter / score by `platform`, `previouslyBought`, `shopAgeYears`,
-  `suspectClone`, `tags` directly. `rawText` stays as the source of
-  truth for unrecognized signals.
-- **Background tab creation via raw CDP** — `context.newPage()` would
-  bring Chrome to the macOS foreground on every action, stealing focus.
-  The adapter issues `Target.createTarget({background: true})` through
-  a browser-level CDP session and picks the resulting page up via the
-  context's `page` event.
-- **Verification walls short-circuit** — when state is `verification-wall`
-  or `login-wall`, the adapter returns early with
-  `requiresUserAction: true` and a screenshot of the wall, instead of
-  spinning on selectors that will never resolve.
-- **Best-effort over fragile certainty** — `priceTiers` and `moq` only
-  fire when the values leak into the visible rendered text; they're
-  documented as best-effort. SKU panels and the mtop detail API are
-  out of scope.
+  calls (ad slots, personalization). The `href` is stable; the index is
+  not.
+- **SSR `__ICE_APP_CONTEXT__` over DOM scraping** — detail pages embed
+  canonical product data at `loaderData.home.data.res`; the adapter reads
+  what the page rendered from, with DOM scraping as silent fallback and
+  `ssrSource` flagging which path produced the data.
+- **Background tab creation via raw CDP** — `context.newPage()` steals
+  macOS focus on every action; the adapter issues
+  `Target.createTarget({background: true})` instead.
+- **Verification walls short-circuit** — `requiresUserAction: true` plus
+  a screenshot of the wall, instead of spinning on selectors that will
+  never resolve.
+- **Community check runs beside the answer, not in front of it** — the
+  user reads the preliminary table while the subagent sweeps; the
+  verdict arrives as a follow-up, and contradictions are stated, not
+  blended.
 
 ## Limitations
 
-- **Mtop search-API tap is not implemented.** Search results are
-  SSR-rendered into the HTML (already covered by the existing
-  parser); calling the mtop search API directly would require
-  client-side `sign` computation against a moving signature, with
-  little payoff over `search` + `open-href`.
+- **Mtop search-API tap is not implemented** — search results are already
+  SSR-rendered into the HTML; a direct mtop search call would need
+  client-side `sign` computation against a moving signature for little
+  payoff over `search` + `open-href`.
 - **`priceTiers` / `moq`** rarely appear in the rendered body; tier
-  pricing usually lives in the SKU panel behind a click and is not
-  scraped.
-- **Detail-page `shop` extraction** is two-stage: anchor blacklist
-  then head-of-rawText scan. New UI-chrome strings can sneak past
-  if Taobao adds them — extend `SHOP_NAME_BLACKLIST` in
-  `parser.ts` when you spot a regression.
-- **The `__ICE_APP_CONTEXT__` path will drift** with Taobao SSR
-  bumps. The fallback to DOM scraping is silent (a missing field
-  beats a wrong one), and `ssrSource` flags which path produced
-  the data so callers can scope their trust accordingly.
-- **City-only listings** (no province) are not extracted into
-  `location` — the whitelist is province / SAR-level.
+  pricing usually hides in the SKU panel behind a click.
+- **Detail-page `shop` extraction** is heuristic (anchor blacklist, then
+  head-of-rawText scan) — extend `SHOP_NAME_BLACKLIST` in `parser.ts`
+  when new UI chrome sneaks past.
+- **The `__ICE_APP_CONTEXT__` path will drift** with Taobao SSR bumps;
+  the DOM fallback is silent by design (a missing field beats a wrong
+  one).
+- **City-only listings** are not extracted into `location` — the
+  whitelist is province / SAR-level.
+- **Bilibili comment pulls** depend on an unauthenticated public API;
+  if it gains signing requirements, the community check falls back to
+  web-search snippets.
 
 ## Development
-
-The bundled adapter:
 
 ```bash
 cd assets/taobao-agent-adapter
 npm install                  # auto-runs on first wrapper invocation
 npm run build                # tsc -p tsconfig.json
-npm test                     # 21 unit tests covering parser + state
+npm test                     # 25 unit tests covering parser + state
 npm run smoke:doctor         # JSON env summary
 ```
 
-The wrapper handles `cd` and `npm run` for you when called through
-`./scripts/taobao.sh`. Edit TypeScript under `src/`; running any
-wrapper action triggers a rebuild via `npm run build`.
+The wrapper handles `cd` and `npm run` when called through
+`./scripts/taobao.sh`; any wrapper action triggers a rebuild.
 
 When adding extraction logic:
 
-- New search-candidate fields → `parser.ts` (`summarizeCandidate`)
-  and `types.ts` (`ProductSummary`); add a unit test.
-- New detail fields from SSR → `adapter.ts`
-  (`extractIceContextDetail`) and `types.ts` (`ProductDetail`).
-- New tag / clone keyword → extend `TAG_PATTERNS` /
-  `CLONE_KEYWORD_PATTERNS` / `CLONE_SUFFIX_PATTERNS` in `parser.ts`.
+- New search-candidate fields → `parser.ts` (`summarizeCandidate`) +
+  `types.ts` (`ProductSummary`); add a unit test.
+- New detail fields from SSR → `adapter.ts` (`extractIceContextDetail`) +
+  `types.ts` (`ProductDetail`).
+- New tag / clone keyword → `TAG_PATTERNS` / `CLONE_KEYWORD_PATTERNS` /
+  `CLONE_SUFFIX_PATTERNS` in `parser.ts`.
 
-Network-traffic debugging: `searchResult.networkTap` and
-`openResult.networkTap` carry the most recent ~12–15 captured
-responses (Taobao-host JSON / JS / h5api). URLs matching
-`/h5/mtop.taobao.detail.getdetail`, `…getdesc`, or `…pcdetail.*`
-include their full body (capped at 200 KB) in `fullBody` so
-downstream code can parse without re-fetching.
+Network-traffic debugging: `networkTap` carries the most recent ~12–15
+captured responses; URLs matching `mtop.taobao.detail.getdetail`,
+`…getdesc`, or `…pcdetail.*` include their full body (capped at 200 KB)
+in `fullBody`.
 
 ## Cross-references
 
-- [`SKILL.md`](SKILL.md) — agent-facing manifest, setup walkthrough,
-  rules, dos / don'ts. Loaded into Claude's context when the skill
-  triggers.
-- [`references/workflow.md`](references/workflow.md) — runbook with
-  the action list, structured-field documentation, and SSR
-  extraction notes.
-- [`references/browsers.md`](references/browsers.md) — per-OS notes
-  on installing and trusting a Chromium-family browser the adapter
-  can attach to.
-- [`assets/taobao-agent-adapter/README.md`](assets/taobao-agent-adapter/README.md)
-  — adapter-project README (older; prefer the docs above for
-  current behaviour).
+| Document | Role |
+|---|---|
+| [`SKILL.md`](SKILL.md) | Agent-facing manifest — setup walkthrough, rules, community-check trigger |
+| [`references/workflow.md`](references/workflow.md) | Runbook — actions, structured fields, SSR notes, output ergonomics |
+| [`references/community-check.md`](references/community-check.md) | Sentiment cross-check playbook, source trust ranking, subagent template |
+| [`references/browsers.md`](references/browsers.md) | Per-OS browser install / trust notes |
+| [`INSTALL.md`](INSTALL.md) | Bootstrap for tarball recipients |
