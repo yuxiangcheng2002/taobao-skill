@@ -46,12 +46,10 @@ mechanics:
   46-candidate response inside tool-output limits, `href`-stable
   navigation because result indices re-rank between calls.
 
-Everything else builds on that foundation. Because once search and
-detail extraction are reliable, the skill can also address a second
-observation: **listing metrics measure fulfilment, not product quality.**
-A shop can ship a mediocre product quickly and politely for years and
-keep a 4.8+ rating. So on top of extraction, the skill layers two more
-kinds of evidence:
+With extraction reliable, the skill adds two evidence layers for buying
+decisions — because **listing metrics measure fulfilment, not product
+quality**. A shop can ship a mediocre product quickly and politely for
+years and keep a 4.8+ rating:
 
 | Layer | Question it answers | Mechanism |
 |---|---|---|
