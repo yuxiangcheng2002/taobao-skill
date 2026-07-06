@@ -134,8 +134,11 @@ Subagent prompt template — fill the bracketed parts, keep the rest:
 > line>. Method: (a) locate review/横评 videos via WebSearch
 > `<brand> 评测 site:bilibili.com` and `<category> 横评 site:bilibili.com`;
 > (b) pull comment sections with
-> `~/.claude/skills/taobao/scripts/bilibili-comments.sh <BV-id>` —
-> UP主 replies and long-term owner reports carry the most weight;
+> `<skill-dir>/scripts/bilibili-comments.sh <BV-id>` — substitute the
+> absolute path of this skill's install location (e.g.
+> `~/.claude/skills/taobao` or `$CODEX_HOME/skills/taobao`) before
+> launching the subagent; UP主 replies and long-term owner reports carry
+> the most weight;
 > (c) check independent roundups (口碑汇总). Treat zhuanlan.zhihu.com
 > praise articles as soft ads (zero weight). Do NOT attempt the Bilibili
 > wbi search API. Return: per-brand verdict (recommend / avoid /

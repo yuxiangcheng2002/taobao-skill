@@ -1,6 +1,14 @@
 ---
 name: taobao
-description: Use the Taobao agent adapter project to navigate Taobao through a persistent Chromium profile, attached remote-debugging browser, Playwright state detection, structured search results, and product-detail extraction. Use when a user asks to search Taobao, inspect products, compare vendors, open the Nth result, attach to the dedicated Taobao browser, or continue work inside the taobao-agent-adapter project.
+description: >-
+  Use the Taobao agent adapter project to navigate Taobao through a persistent
+  Chromium profile, attached remote-debugging browser, Playwright state
+  detection, structured search results, and product-detail extraction. Use
+  when a user asks to search Taobao, inspect products, compare vendors, open
+  the Nth result, attach to the dedicated Taobao browser, continue work inside
+  the taobao-agent-adapter project, decide which of several Taobao candidates
+  to buy (community-sentiment cross-check), or mention 淘宝 in any
+  search/purchase request.
 ---
 
 # taobao
@@ -26,11 +34,14 @@ Use the bundled Taobao adapter project inside this skill by default.
    personalization yet.
 3. **On the very first invocation in a session, run `./scripts/taobao.sh setup`
    before anything else.** Do not jump straight to `browser-status`, `search`,
-   or any other action. The setup report takes ~1s, reveals misconfiguration
-   (missing browser, broken symlink, Gatekeeper quarantine on macOS) that other
-   actions would hit as opaque failures, and is the difference between a
-   smooth flow and a multi-round diagnostic detour. Treat "already set up"
-   only as evidence from the setup report itself, not as an assumption.
+   or any other action. This is a per-session check, not a one-time install
+   step: the report takes ~1s and reveals misconfiguration (missing browser,
+   broken symlink, Gatekeeper quarantine on macOS) that other actions would
+   hit as opaque failures. If the report is clean, proceed straight to the
+   user's request; only when it flags a failure do you run the full setup
+   flow (browser pick, login) under "Initial setup" below. Treat "already
+   set up" only as evidence from the setup report itself, not as an
+   assumption.
 4. Use `scripts/taobao.sh` for all actions (doctor, probe, search, open-result,
    browser-*). The wrapper `cd`s into the project dir and delegates to
    `npm run` scripts.
@@ -79,9 +90,9 @@ something like "set up taobao", "it's broken, start over", "first time on this
 Mac", "I just installed this skill" — walk through the setup phase before
 running any real command. Do not assume it has been done; run the check.
 
-**Recipients of the bundled tarball** have already done the bootstrap
-(extract, place under `~/.claude/skills/`, restart Claude Code) by hand
-following `INSTALL.md`. Their first agent interaction usually starts with
+**Users who installed via degit or the bundled tarball** have already done
+the bootstrap (fetch or extract, place under the skills directory, restart
+the agent) following `INSTALL.md`. Their first agent interaction usually starts with
 "set up taobao" or a direct request like "search Taobao for X". In either
 case, run the Automatic sequence below before doing real work — the skill
 folder may be in place while `npm install`, the browser pick, and login
@@ -127,11 +138,12 @@ step — is your job.
      Chromium, Edge, or Brave. If a browser is installed at a non-standard
      path, set `CHROMIUM_PATH` and re-run setup. Example for macOS:
      `export CHROMIUM_PATH='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'`
-   - **Skill not installed at `~/.claude/skills/taobao`** → create the
+   - **Skill not installed at the expected skills path** → create the
      symlink yourself:
-     `ln -s <current-skill-dir> ~/.claude/skills/taobao`. This is the
-     standard my-skills install pattern; prefer symlink over copy so repo
-     updates propagate. Do not ask the user to copy-paste it.
+     `ln -s <current-skill-dir> ~/.claude/skills/taobao` (Claude Code) or
+     `ln -s <current-skill-dir> "${CODEX_HOME:-$HOME/.codex}/skills/taobao"`
+     (Codex). This is the standard my-skills install pattern; prefer symlink
+     over copy so repo updates propagate. Do not ask the user to copy-paste it.
 
 3. **Run `./scripts/taobao.sh doctor`.** This triggers the first
    `npm install`, builds TypeScript, and prints a JSON environment summary.
@@ -150,10 +162,12 @@ step — is your job.
    sentence and then proceed to whatever the user originally asked for
    (`search-attached`, `open-result-attached`, etc.).
 
-After initial setup succeeds, subsequent sessions should skip steps 1 and 4
-unless the environment visibly changes (new machine, new OS, missing browser).
-When skipped, you still own execution — go straight to `probe-attached` or the
-user's actual request.
+After initial setup succeeds, subsequent sessions still run the quick `setup`
+report per On-activation step 3 — it is a per-session check. What they skip is
+the rest of this flow: the browser pick (step 1's `--browser` selection) and
+login (step 4) happen again only when the report flags a failure. On a clean
+report you still own execution — go straight to `probe-attached` or the user's
+actual request.
 
 ## macOS browser notes
 
@@ -163,21 +177,12 @@ quarantine trap. Save future-you the detour.
 - **Prefer whatever Chrome-family browser is already trusted on the machine.**
   If setup auto-detects Google Chrome, Edge, or Brave, use it. Do not install
   a second browser just to match the user's unrelated aesthetic preference.
-- **Do not suggest `brew install --cask chromium` on macOS.** The cask is
-  deprecated (slated for removal) and ships an unsigned build. macOS tags it
-  with `com.apple.quarantine`, which causes `--remote-debugging-port` to
-  silently fail to bind — the script will report "port did not come up in
-  time" with no obvious cause. If the user explicitly asks for Chromium and
-  nothing else, warn them about the quarantine step first:
-  `sudo xattr -dr com.apple.quarantine /Applications/Chromium.app` (needs
-  sudo because `/Applications` is system-owned).
-- **Arc is Chromium-based but unreliable for remote debugging.** Do not add it
-  to `CHROMIUM_PATH`. If the user says "I use Arc", explain that `browser-start`
-  opens its own dedicated window regardless of what they browse with daily,
-  and recommend pointing it at Chrome/Edge/Brave instead.
 - **If `browser-start` fails with "port did not come up in time" on macOS,
   assume quarantine first.** `remote-browser.sh` now checks for it and prints
   the exact `sudo xattr` command; follow that before diagnosing anything else.
+
+Per-browser install/trust details, including why brew-cask Chromium and Arc
+are traps, live in `references/browsers.md`.
 
 ## Rules
 

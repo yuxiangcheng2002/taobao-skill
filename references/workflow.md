@@ -23,8 +23,8 @@ Typical absolute paths depending on how the skill was installed:
 # Claude Code (macOS, Linux, Windows via Git Bash / WSL)
 ~/.claude/skills/taobao/scripts/taobao.sh <action> [args...]
 
-# Legacy openclaw layout
-~/.openclaw/workspace/skills/taobao/scripts/taobao.sh <action> [args...]
+# Codex
+"${CODEX_HOME:-$HOME/.codex}/skills/taobao/scripts/taobao.sh" <action> [args...]
 ```
 
 The wrapper auto-detects its own location, runs `npm install` the first time

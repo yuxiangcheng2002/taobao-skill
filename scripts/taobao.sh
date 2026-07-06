@@ -88,32 +88,32 @@ case "$ACTION" in
     npm run taobao:probe:attached
     ;;
   search)
-    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME search <query>" >&2; exit 1; }
+    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME search <query> [--brief]" >&2; exit 1; }
     ensure_deps
     npm run taobao:search -- "$@"
     ;;
   search-attached)
-    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME search-attached <query>" >&2; exit 1; }
+    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME search-attached <query> [--brief]" >&2; exit 1; }
     ensure_deps
     npm run taobao:search:attached -- "$@"
     ;;
   open-result)
-    [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME open-result <query> <index> [--no-screenshot]" >&2; exit 1; }
+    [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME open-result <query> <index> [--no-screenshot] [--brief]" >&2; exit 1; }
     ensure_deps
     npm run taobao:open-result -- "$@"
     ;;
   open-result-attached)
-    [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME open-result-attached <query> <index> [--no-screenshot]" >&2; exit 1; }
+    [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME open-result-attached <query> <index> [--no-screenshot] [--brief]" >&2; exit 1; }
     ensure_deps
     npm run taobao:open-result:attached -- "$@"
     ;;
   open-href)
-    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME open-href <url> [--no-screenshot]" >&2; exit 1; }
+    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME open-href <url> [--no-screenshot] [--brief]" >&2; exit 1; }
     ensure_deps
     npm run taobao:open-href -- "$@"
     ;;
   open-href-attached)
-    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME open-href-attached <url> [--no-screenshot]" >&2; exit 1; }
+    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME open-href-attached <url> [--no-screenshot] [--brief]" >&2; exit 1; }
     ensure_deps
     npm run taobao:open-href:attached -- "$@"
     ;;
@@ -145,12 +145,12 @@ Actions:
   browser-stop
   probe
   probe-attached
-  search <query>
-  search-attached <query>
-  open-result <query> <index> [--no-screenshot]
-  open-result-attached <query> <index> [--no-screenshot]
-  open-href <url> [--no-screenshot]
-  open-href-attached <url> [--no-screenshot]
+  search <query> [--brief]
+  search-attached <query> [--brief]
+  open-result <query> <index> [--no-screenshot] [--brief]
+  open-result-attached <query> <index> [--no-screenshot] [--brief]
+  open-href <url> [--no-screenshot] [--brief]
+  open-href-attached <url> [--no-screenshot] [--brief]
   download-images <query> <index> [outputDir]
   download-images-attached <query> <index> [outputDir]
 USAGE
