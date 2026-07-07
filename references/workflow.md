@@ -123,6 +123,13 @@ agent originally saw. When the candidate's href is already known from a prior
 straight to the listing. Pass the `href` field from the search-result
 candidate verbatim.
 
+## Attached actions are sequential — never run them concurrently
+All `*-attached` actions drive the same CDP browser and navigate its tabs.
+Two attached commands in flight at once (e.g. `probe-attached` and
+`search-attached` in parallel) navigate over each other and fail with
+`ERR_ABORTED`. Run them one after another; each returns in seconds, so
+there is nothing to gain from parallelizing anyway.
+
 ## Preferred operating mode
 Use the attached-browser workflow when:
 - the user is already logged in

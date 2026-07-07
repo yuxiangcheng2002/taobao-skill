@@ -187,6 +187,9 @@ are traps, live in `references/browsers.md`.
 ## Rules
 
 - Prefer the attached-browser workflow when possible.
+- Run `*-attached` actions strictly sequentially — they share one CDP
+  browser; concurrent attached calls navigate over each other and fail
+  with `ERR_ABORTED`.
 - Treat the dedicated Taobao Chromium profile as persistent state.
 - Do not rely on brittle CSS selectors when network/state-based methods are available.
 - If a live browser is required, keep the user's dedicated browser open until the attached action finishes.
