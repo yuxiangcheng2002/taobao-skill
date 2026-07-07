@@ -143,6 +143,12 @@ canonical reference with per-action caveats lives in
 | `open-href` / `-attached <url>` | Open a specific URL — index-stable, preferred |
 | `download-images` / `-attached <query> <index>` | Save the listing's gallery |
 
+The `*-attached` variants reuse the persistent logged-in profile via CDP —
+and they all drive the **same** browser, so run them strictly one after
+another. Two attached commands in flight at once navigate over each other
+and fail with `ERR_ABORTED`; each returns in seconds, so parallelizing
+buys nothing.
+
 Two flags matter in agent contexts:
 
 - **`--brief`** (`search`, `open-result`, `open-href`) drops the verbose
