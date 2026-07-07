@@ -45,10 +45,37 @@ fi
 # Some runtimes install skills as read-only copies (Codex keeps
 # ~/.codex/skills unwritable to normal tool calls), but the adapter needs to
 # write node_modules/ and dist/ next to its sources. When the bundled adapter
-# is not writable, mirror its sources into the user data dir and run from
-# there. Re-synced on every invocation so skill updates propagate; an explicit
-# TAOBAO_PROJECT_DIR always wins and skips this entirely.
-if [[ -z "${TAOBAO_PROJECT_DIR:-}" ]] && ! ( : >"$PROJECT_DIR/.taobao-write-test" ) 2>/dev/null; then
+# should not be written to, mirror its sources into the user data dir and run
+# from there. Re-synced on every invocation so skill updates propagate; an
+# explicit TAOBAO_PROJECT_DIR always wins and skips this entirely.
+#
+# "Should not be written to" is decided in two steps:
+#   1. A copied install under the Codex skills dir is ALWAYS treated as a
+#      read-only bundle. Writability is not a stable signal there — an
+#      escalated-permission run (approved for localhost CDP access) can pass
+#      the write probe against ~/.codex/skills and would pollute the install
+#      (taobao-skill#4). Symlinked dev checkouts are exempt.
+#   2. Otherwise, probe with a tiny temp write.
+USE_RUNTIME_COPY=0
+if [[ -z "${TAOBAO_PROJECT_DIR:-}" ]]; then
+  CODEX_SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/taobao"
+  if [[ -d "$CODEX_SKILL_DIR" && ! -L "$CODEX_SKILL_DIR" ]]; then
+    SKILL_REAL="$(cd "$SKILL_DIR" && pwd -P)"
+    CODEX_REAL="$(cd "$CODEX_SKILL_DIR" 2>/dev/null && pwd -P || true)"
+    if [[ -n "$CODEX_REAL" && "$SKILL_REAL" == "$CODEX_REAL" ]]; then
+      USE_RUNTIME_COPY=1
+    fi
+  fi
+  if (( ! USE_RUNTIME_COPY )); then
+    if ( : >"$PROJECT_DIR/.taobao-write-test" ) 2>/dev/null; then
+      rm -f "$PROJECT_DIR/.taobao-write-test" 2>/dev/null || true
+    else
+      USE_RUNTIME_COPY=1
+    fi
+  fi
+fi
+
+if (( USE_RUNTIME_COPY )); then
   RUNTIME_DIR="$TAOBAO_DATA_DIR/runtime/taobao-agent-adapter"
   mkdir -p "$RUNTIME_DIR"
   if command -v rsync >/dev/null 2>&1; then
@@ -64,10 +91,8 @@ if [[ -z "${TAOBAO_PROJECT_DIR:-}" ]] && ! ( : >"$PROJECT_DIR/.taobao-write-test
   # The sync preserves the source's read-only mode bits — restore ownership
   # of the copy or npm/tsc hit the same EACCES the mirror exists to avoid.
   chmod -R u+w "$RUNTIME_DIR"
-  echo "Bundled adapter is read-only; using runtime copy at $RUNTIME_DIR" >&2
+  echo "Skill bundle treated as read-only; using runtime adapter copy at $RUNTIME_DIR" >&2
   PROJECT_DIR="$RUNTIME_DIR"
-else
-  rm -f "$PROJECT_DIR/.taobao-write-test" 2>/dev/null || true
 fi
 
 cd "$PROJECT_DIR"
