@@ -3,6 +3,14 @@
 ## Project paths
 - Bundled project root: `assets/taobao-agent-adapter` (resolved relative to this skill directory)
 - Override project root with `TAOBAO_PROJECT_DIR` when you want an external checkout
+- **Read-only installs** (e.g. Codex copies skills into `~/.codex/skills`
+  unwritable to normal tool calls): the wrapper detects that the bundled
+  adapter is not writable and automatically mirrors its sources to
+  `$TAOBAO_DATA_DIR/runtime/taobao-agent-adapter`, building and running
+  there. Re-synced on every invocation (~1s when warm; `node_modules`/`dist`
+  are preserved). The stderr line `Bundled adapter is read-only; using
+  runtime copy at …` tells you which mode you're in. An explicit
+  `TAOBAO_PROJECT_DIR` always wins and skips the mirror.
 - User data dir: `~/.taobao-agent/` (overridable via `TAOBAO_DATA_DIR`) — holds:
   - `config.sh` — persisted browser path
   - `profiles/taobao-chromium/` — Chrome login profile

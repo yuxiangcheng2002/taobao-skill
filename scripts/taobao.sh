@@ -42,6 +42,34 @@ if [[ ! -d "$PROJECT_DIR" ]]; then
   exit 1
 fi
 
+# Some runtimes install skills as read-only copies (Codex keeps
+# ~/.codex/skills unwritable to normal tool calls), but the adapter needs to
+# write node_modules/ and dist/ next to its sources. When the bundled adapter
+# is not writable, mirror its sources into the user data dir and run from
+# there. Re-synced on every invocation so skill updates propagate; an explicit
+# TAOBAO_PROJECT_DIR always wins and skips this entirely.
+if [[ -z "${TAOBAO_PROJECT_DIR:-}" ]] && ! ( : >"$PROJECT_DIR/.taobao-write-test" ) 2>/dev/null; then
+  RUNTIME_DIR="$TAOBAO_DATA_DIR/runtime/taobao-agent-adapter"
+  mkdir -p "$RUNTIME_DIR"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete \
+      --exclude node_modules --exclude dist \
+      --exclude npm-cache --exclude .profiles \
+      "$PROJECT_DIR/" "$RUNTIME_DIR/"
+  else
+    # cp fallback: refreshes sources but never deletes removed files; good
+    # enough given rsync ships with macOS and virtually every Linux distro.
+    cp -R "$PROJECT_DIR/." "$RUNTIME_DIR/"
+  fi
+  # The sync preserves the source's read-only mode bits — restore ownership
+  # of the copy or npm/tsc hit the same EACCES the mirror exists to avoid.
+  chmod -R u+w "$RUNTIME_DIR"
+  echo "Bundled adapter is read-only; using runtime copy at $RUNTIME_DIR" >&2
+  PROJECT_DIR="$RUNTIME_DIR"
+else
+  rm -f "$PROJECT_DIR/.taobao-write-test" 2>/dev/null || true
+fi
+
 cd "$PROJECT_DIR"
 
 ensure_deps() {

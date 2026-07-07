@@ -39,6 +39,11 @@ mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
 npx -y degit yuxiangcheng2002/taobao-skill "${CODEX_HOME:-$HOME/.codex}/skills/taobao"
 ```
 
+Codex treats `~/.codex/skills` as read-only for normal tool calls; the
+wrapper handles this automatically by mirroring the adapter into a
+writable runtime copy under `~/.taobao-agent/runtime/` and building
+there. No manual step needed.
+
 `degit` (no `npm install` of the package itself) just fetches the latest
 state of the public repo's `main` branch into the target directory. It
 takes a couple of seconds and leaves no `.git/` behind, so subsequent
