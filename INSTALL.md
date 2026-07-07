@@ -151,5 +151,13 @@ The next `setup` + `browser-start` rebuilds it.
   com.apple.quarantine` command setup printed.
 - **Login wall keeps appearing** → Taobao session expired. Run
   `browser-start` again, log in interactively, then `probe-attached`.
+- **`npm install` times out fetching from `registry.npmjs.org`** → some
+  networks throttle the npm registry. The Yarn mirror carries the same
+  packages:
+
+  ```bash
+  npm install --registry=https://registry.yarnpkg.com \
+    --replace-registry-host=always --no-audit --no-fund
+  ```
 - **Anything else** → ask Claude. The skill itself is documented well
   enough that the agent can usually self-diagnose from the wrapper output.

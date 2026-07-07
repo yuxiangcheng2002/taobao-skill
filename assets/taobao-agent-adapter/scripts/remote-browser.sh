@@ -130,12 +130,23 @@ case "$CMD" in
     echo "Using browser: $CHROMIUM_BIN"
     kill_browser
     sleep 1
-    nohup "$CHROMIUM_BIN" \
-      --remote-debugging-port="$PORT" \
-      --user-data-dir="$PROFILE_DIR" \
-      --no-default-browser-check \
-      --disable-blink-features=AutomationControlled \
-      "$URL" >"$LOG_FILE" 2>&1 &
+    if [[ "$(uname -s)" == "Darwin" && "$CHROMIUM_BIN" == *.app/Contents/MacOS/* ]]; then
+      APP_BUNDLE="${CHROMIUM_BIN%.app/Contents/MacOS/*}.app"
+      # LaunchServices keeps GUI apps alive after the invoking shell exits.
+      open -na "$APP_BUNDLE" --args \
+        --remote-debugging-port="$PORT" \
+        --user-data-dir="$PROFILE_DIR" \
+        --no-default-browser-check \
+        --disable-blink-features=AutomationControlled \
+        "$URL"
+    else
+      nohup "$CHROMIUM_BIN" \
+        --remote-debugging-port="$PORT" \
+        --user-data-dir="$PROFILE_DIR" \
+        --no-default-browser-check \
+        --disable-blink-features=AutomationControlled \
+        "$URL" >"$LOG_FILE" 2>&1 &
+    fi
 
     for _ in $(seq 1 20); do
       if check_port; then

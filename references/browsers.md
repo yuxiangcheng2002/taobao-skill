@@ -126,6 +126,50 @@ auto-discovered ones; non-existent entries are silently ignored.
 
 ---
 
+## macOS launch mechanics — LaunchServices, not nohup
+
+On macOS, `browser-start` launches `.app` bundles via LaunchServices
+(`open -na <App.app> --args …`) instead of `nohup <binary> … &`. Two
+reasons, both learned the hard way:
+
+- **Process lifetime.** Some agent runtimes (observed under Codex's shell
+  tool) tear down the tool process group after each call; a GUI Chrome
+  child launched with `nohup … &` dies with it, so `browser-start` reports
+  success but `probe-attached` finds port 9222 refused moments later.
+  LaunchServices owns the app process independently of the invoking shell,
+  so the browser survives.
+- **Instance isolation.** `open -na` starts a *new* app instance with the
+  dedicated `--user-data-dir`, rather than handing the URL to an
+  already-running daily-profile Chrome. The user's daily browsing profile
+  is never touched or merged into.
+
+Non-`.app` binaries (Playwright cache on Linux, plain `chrome` binaries)
+keep the `nohup` path — the lifetime issue is macOS-GUI-specific. One side
+effect: LaunchServices launches don't write the browser-launch log
+(`~/.taobao-agent/playwright/taobao-browser.log`); use
+`browser-status` / `curl 127.0.0.1:9222/json/version` to diagnose instead.
+
+## Recommended preference order
+
+When several browsers are available, prefer in this order:
+
+1. **Isolated binaries** — Chrome for Testing, Playwright / Puppeteer
+   cached Chromium. Pre-downloaded, not quarantined, fully separate from
+   daily browsing.
+2. **Trusted system browsers** — Google Chrome, Edge, Brave. Fine as
+   defaults; the dedicated `--user-data-dir` keeps Taobao state out of the
+   daily profile, and on macOS `open -na` keeps the instances separate.
+3. **Homebrew Chromium — last choice.** The cask is unsigned; Gatekeeper
+   quarantine silently prevents the remote-debugging port from binding
+   until `sudo xattr -dr com.apple.quarantine` is run. Only use it when
+   setup has detected and explained the quarantine fix.
+
+Do not auto-switch users to Homebrew Chromium to "avoid" their daily
+Chrome — the dedicated profile plus `open -na` already provides the
+isolation, without the quarantine trap.
+
+---
+
 ## How the skill picks a browser
 
 Resolution order used by `remote-browser.sh` and the adapter's `config.ts`:
