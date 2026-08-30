@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -13,6 +14,15 @@ PROJECT_DIR="${TAOBAO_PROJECT_DIR:-$BUNDLED_PROJECT_DIR}"
 # skill folder so the skill itself can be re-extracted / replaced without
 # touching the user's login state.
 export TAOBAO_DATA_DIR="${TAOBAO_DATA_DIR:-$HOME/.taobao-agent}"
+TAOBAO_REMOTE_DEBUG_PORT="${TAOBAO_REMOTE_DEBUG_PORT:-9222}"
+if ! [[ "$TAOBAO_REMOTE_DEBUG_PORT" =~ ^[0-9]+$ ]] || (( TAOBAO_REMOTE_DEBUG_PORT < 1 || TAOBAO_REMOTE_DEBUG_PORT > 65535 )); then
+  echo "Error: TAOBAO_REMOTE_DEBUG_PORT must be an integer from 1 to 65535" >&2
+  exit 2
+fi
+export TAOBAO_REMOTE_DEBUG_PORT
+DEFAULT_TAOBAO_CDP_URL="http://127.0.0.1:$TAOBAO_REMOTE_DEBUG_PORT"
+mkdir -p "$TAOBAO_DATA_DIR"
+chmod 700 "$TAOBAO_DATA_DIR" 2>/dev/null || true
 CONFIG_FILE="$TAOBAO_DATA_DIR/config.sh"
 LEGACY_CONFIG_FILE="$SKILL_DIR/.taobao-config.sh"
 
@@ -33,6 +43,13 @@ fi
 if [[ "${1:-}" == "setup" ]]; then
   shift || true
   exec "$SKILL_DIR/scripts/setup.sh" "$@"
+fi
+
+# Xianyu is a deliberately gated submode. Keep the exact token check in its
+# own wrapper so a near-match exits before dependencies, CDP, or network work.
+if [[ "${1:-}" == "ultrasource" ]]; then
+  shift || true
+  exec "$SKILL_DIR/scripts/ultrasource.sh" "$@"
 fi
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
@@ -58,14 +75,17 @@ fi
 #   2. Otherwise, probe with a tiny temp write.
 USE_RUNTIME_COPY=0
 if [[ -z "${TAOBAO_PROJECT_DIR:-}" ]]; then
-  CODEX_SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/taobao"
-  if [[ -d "$CODEX_SKILL_DIR" && ! -L "$CODEX_SKILL_DIR" ]]; then
-    SKILL_REAL="$(cd "$SKILL_DIR" && pwd -P)"
-    CODEX_REAL="$(cd "$CODEX_SKILL_DIR" 2>/dev/null && pwd -P || true)"
-    if [[ -n "$CODEX_REAL" && "$SKILL_REAL" == "$CODEX_REAL" ]]; then
-      USE_RUNTIME_COPY=1
+  SKILL_REAL="$(cd "$SKILL_DIR" && pwd -P)"
+  CODEX_SKILL_DIRS=("$HOME/.agents/skills/taobao" "${CODEX_HOME:-$HOME/.codex}/skills/taobao")
+  for CODEX_SKILL_DIR in "${CODEX_SKILL_DIRS[@]}"; do
+    if [[ -d "$CODEX_SKILL_DIR" && ! -L "$CODEX_SKILL_DIR" ]]; then
+      CODEX_REAL="$(cd "$CODEX_SKILL_DIR" 2>/dev/null && pwd -P || true)"
+      if [[ -n "$CODEX_REAL" && "$SKILL_REAL" == "$CODEX_REAL" ]]; then
+        USE_RUNTIME_COPY=1
+        break
+      fi
     fi
-  fi
+  done
   if (( ! USE_RUNTIME_COPY )); then
     if ( : >"$PROJECT_DIR/.taobao-write-test" ) 2>/dev/null; then
       rm -f "$PROJECT_DIR/.taobao-write-test" 2>/dev/null || true
@@ -105,6 +125,15 @@ ensure_deps() {
   npm install
 }
 
+# Only attached actions receive the managed browser endpoint. Non-attached
+# actions must remain able to launch their own persistent context; exporting a
+# default TAOBAO_CDP_URL globally collapses the two workflows and makes every
+# action depend on a listening CDP browser. Preserve an explicit caller
+# override for advanced/private endpoints.
+run_attached() {
+  TAOBAO_CDP_URL="${TAOBAO_CDP_URL:-$DEFAULT_TAOBAO_CDP_URL}" "$@"
+}
+
 ACTION="${1:-help}"
 shift || true
 
@@ -119,6 +148,60 @@ case "$ACTION" in
   test)
     ensure_deps
     npm test
+    ;;
+  verify)
+    ensure_deps
+    exec env TAOBAO_PROJECT_DIR="$PROJECT_DIR" "$SKILL_DIR/scripts/verify.sh"
+    ;;
+  e2e-live)
+    ensure_deps
+    LIVE_ROOT="${TAOBAO_EVIDENCE_DIR:-$(cd "$SKILL_DIR/.." && pwd)/taobao-workspace/runs}"
+    LIVE_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+    LIVE_SHA="$(git -C "$(cd "$SKILL_DIR/.." && pwd)" rev-parse --short HEAD 2>/dev/null || echo nogit)"
+    LIVE_DIR="${1:-$LIVE_ROOT/$LIVE_STAMP-$LIVE_SHA/live}"
+    mkdir -p "$LIVE_DIR"
+    chmod 700 "$LIVE_DIR"
+    npm run build
+    TAOBAO_CDP_URL="${TAOBAO_CDP_URL:-$DEFAULT_TAOBAO_CDP_URL}" \
+      exec node scripts/live-e2e.mjs "$LIVE_DIR"
+    ;;
+  _ultrasource)
+    ensure_deps
+    [[ "${ULTRASOURCE_TRIGGER:-}" == "Ultrasource" ]] || {
+      echo "ULTRASOURCE_TRIGGER_REQUIRED: use scripts/ultrasource.sh Ultrasource ..." >&2
+      exit 64
+    }
+    SUBACTION="${1:-help}"
+    shift || true
+    case "$SUBACTION" in
+      search)
+        [[ $# -ge 1 ]] || { echo "Usage: ultrasource.sh Ultrasource search <query> [--brief]" >&2; exit 1; }
+        run_attached npm run ultrasource:search -- "$@"
+        ;;
+      open-href)
+        [[ $# -ge 1 ]] || { echo "Usage: ultrasource.sh Ultrasource open-href <url> [--no-screenshot] [--brief]" >&2; exit 1; }
+        run_attached npm run ultrasource:open-href -- "$@"
+        ;;
+      e2e-live)
+        LIVE_ROOT="${TAOBAO_EVIDENCE_DIR:-$(cd "$SKILL_DIR/.." && pwd)/taobao-workspace/runs}"
+        LIVE_STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+        LIVE_SHA="$(git -C "$(cd "$SKILL_DIR/.." && pwd)" rev-parse --short HEAD 2>/dev/null || echo nogit)"
+        LIVE_DIR="${1:-$LIVE_ROOT/$LIVE_STAMP-$LIVE_SHA/ultrasource-live}"
+        mkdir -p "$LIVE_DIR"
+        chmod 700 "$LIVE_DIR"
+        npm run build
+        TAOBAO_CDP_URL="${TAOBAO_CDP_URL:-$DEFAULT_TAOBAO_CDP_URL}" \
+          exec node scripts/ultrasource-live-e2e.mjs "$LIVE_DIR"
+        ;;
+      help|--help|-h)
+        npm run build >/dev/null
+        node dist/src/xianyu/cli.js help
+        ;;
+      *)
+        echo "Unknown Ultrasource action: $SUBACTION" >&2
+        exit 1
+        ;;
+    esac
     ;;
   browser-start)
     ensure_deps
@@ -138,7 +221,7 @@ case "$ACTION" in
     ;;
   probe-attached)
     ensure_deps
-    npm run taobao:probe:attached
+    run_attached npm run taobao:probe:attached
     ;;
   search)
     [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME search <query> [--brief]" >&2; exit 1; }
@@ -148,7 +231,7 @@ case "$ACTION" in
   search-attached)
     [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME search-attached <query> [--brief]" >&2; exit 1; }
     ensure_deps
-    npm run taobao:search:attached -- "$@"
+    run_attached npm run taobao:search:attached -- "$@"
     ;;
   open-result)
     [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME open-result <query> <index> [--no-screenshot] [--brief]" >&2; exit 1; }
@@ -158,7 +241,7 @@ case "$ACTION" in
   open-result-attached)
     [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME open-result-attached <query> <index> [--no-screenshot] [--brief]" >&2; exit 1; }
     ensure_deps
-    npm run taobao:open-result:attached -- "$@"
+    run_attached npm run taobao:open-result:attached -- "$@"
     ;;
   open-href)
     [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME open-href <url> [--no-screenshot] [--brief]" >&2; exit 1; }
@@ -168,7 +251,21 @@ case "$ACTION" in
   open-href-attached)
     [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME open-href-attached <url> [--no-screenshot] [--brief]" >&2; exit 1; }
     ensure_deps
-    npm run taobao:open-href:attached -- "$@"
+    run_attached npm run taobao:open-href:attached -- "$@"
+    ;;
+  visual-open-attached)
+    [[ $# -ge 1 ]] || { echo "Usage: $SCRIPT_NAME visual-open-attached <url> [--brief]" >&2; exit 1; }
+    ensure_deps
+    run_attached npm run taobao:visual-open:attached -- "$@"
+    ;;
+  visual-resume-attached)
+    ensure_deps
+    run_attached npm run taobao:visual-resume:attached -- "$@"
+    ;;
+  visual-close-attached)
+    [[ $# -eq 0 ]] || { echo "Usage: $SCRIPT_NAME visual-close-attached" >&2; exit 1; }
+    ensure_deps
+    run_attached npm run taobao:visual-close:attached
     ;;
   download-images)
     [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME download-images <query> <index> [outputDir]" >&2; exit 1; }
@@ -178,7 +275,7 @@ case "$ACTION" in
   download-images-attached)
     [[ $# -ge 2 ]] || { echo "Usage: $SCRIPT_NAME download-images-attached <query> <index> [outputDir]" >&2; exit 1; }
     ensure_deps
-    npm run taobao:download-images:attached -- "$@"
+    run_attached npm run taobao:download-images:attached -- "$@"
     ;;
   help|--help|-h)
     cat <<USAGE
@@ -193,6 +290,9 @@ Actions:
   install
   doctor
   test
+  verify       deterministic unit + browser + CLI + permission/PID gates
+  e2e-live [outputDir]
+  ultrasource Ultrasource <search|open-href|e2e-live|help> [args...]
   browser-start
   browser-status
   browser-stop
@@ -204,6 +304,9 @@ Actions:
   open-result-attached <query> <index> [--no-screenshot] [--brief]
   open-href <url> [--no-screenshot] [--brief]
   open-href-attached <url> [--no-screenshot] [--brief]
+  visual-open-attached <url> [--brief]
+  visual-resume-attached [--brief]
+  visual-close-attached
   download-images <query> <index> [outputDir]
   download-images-attached <query> <index> [outputDir]
 USAGE

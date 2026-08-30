@@ -2,5 +2,5 @@
 # Schema: https://developers.openai.com/codex/skills
 interface:
   display_name: "Taobao"
-  short_description: "Search Taobao, extract structured product data, verify sellers, and cross-check community sentiment before buying."
+  short_description: "Read-only Taobao/Tmall search plus an exact-token-gated Ultrasource mode for Xianyu sourcing."
   default_prompt: "Search Taobao for "

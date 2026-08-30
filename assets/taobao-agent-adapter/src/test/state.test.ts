@@ -13,6 +13,7 @@ import {
   extractShopFromHeadText,
   extractTags,
   filterProductCandidates,
+  isAllowedProductUrl,
   isDetailHost,
   parseIceContextDetail,
   pickProductImages,
@@ -41,9 +42,50 @@ test('detects login walls', () => {
   );
 });
 
+test('does not treat the anonymous header login link as a login wall', () => {
+  assert.equal(
+    inferPageState(
+      'https://item.taobao.com/item.htm?id=123',
+      'MGN12 商品详情',
+      '亲，请登录 免费注册 示例旗舰店 MGN12 立即购买 用户评价'
+    ),
+    'product-detail'
+  );
+});
+
 test('detects verification walls', () => {
   assert.equal(
     inferPageState('https://www.taobao.com/', '淘宝', '请输入验证码 安全验证 滑块'),
+    'verification-wall'
+  );
+});
+
+test('does not confuse product vocabulary with verification walls', () => {
+  assert.equal(
+    inferPageState('https://s.taobao.com/search?q=MGN12', '直线导轨滑块 MGN12 - 淘宝', '直线导轨滑块 MGN12 搜索结果'),
+    'search-results'
+  );
+  assert.equal(
+    inferPageState('https://s.taobao.com/search?q=ocr', '验证码识别 OCR 模块 - 淘宝', '验证码识别 OCR 模块 verify compatible sensor'),
+    'search-results'
+  );
+  assert.equal(
+    inferPageState('https://item.taobao.com/item.htm?id=1', '安全验证芯片', '安全验证芯片 原装 商品详情'),
+    'product-detail'
+  );
+});
+
+test('detects verification overlays even on search and detail URLs', () => {
+  assert.equal(
+    inferPageState('https://s.taobao.com/search?q=esp32', '淘宝搜索', '请拖动滑块完成安全验证'),
+    'verification-wall'
+  );
+  assert.equal(
+    inferPageState('https://item.taobao.com/item.htm?id=1', '商品详情', '请输入验证码，验证码看不清可刷新'),
+    'verification-wall'
+  );
+  assert.equal(
+    inferPageState('https://punish.taobao.com/punish', '淘宝', ''),
     'verification-wall'
   );
 });
@@ -61,6 +103,8 @@ test('filters candidate product links', () => {
       imageUrls: ['https://img.alicdn.com/item-alt.jpg']
     },
     { text: 'Store', href: 'https://shop.taobao.com/' },
+    { text: 'Evil suffix', href: 'https://item.taobao.com.evil.example/item.htm?id=9' },
+    { text: 'Userinfo trick', href: 'https://item.taobao.com@evil.example/item.htm?id=10' },
     { text: '', href: 'https://item.taobao.com/item.htm?id=2' },
     { text: 'Tmall Item', href: 'https://detail.tmall.com/item.htm?id=3' }
   ]);
@@ -74,6 +118,25 @@ test('filters candidate product links', () => {
     },
     { text: 'Tmall Item', href: 'https://detail.tmall.com/item.htm?id=3' }
   ]);
+});
+
+test('product URL boundary requires https, exact host, and default port', () => {
+  const valid = [
+    'https://item.taobao.com/item.htm?id=1',
+    'https://detail.tmall.com/item.htm?id=2#sku'
+  ];
+  const invalid = [
+    'http://item.taobao.com/item.htm?id=1',
+    'https://item.taobao.com.evil.example/item.htm?id=1',
+    'https://item.taobao.com@evil.example/item.htm?id=1',
+    'https://sub.item.taobao.com/item.htm?id=1',
+    'https://item.taobao.com.:443/item.htm?id=1',
+    'https://item.taobao.com:8443/item.htm?id=1',
+    'javascript:https://item.taobao.com/item.htm?id=1',
+    'https://evil.example/?next=https://item.taobao.com/item.htm?id=1'
+  ];
+  for (const href of valid) assert.equal(isAllowedProductUrl(href), true, href);
+  for (const href of invalid) assert.equal(isAllowedProductUrl(href), false, href);
 });
 
 test('keeps only interesting taobao-family image urls', () => {

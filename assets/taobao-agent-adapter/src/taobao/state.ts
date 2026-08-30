@@ -1,34 +1,54 @@
 import { TaobaoPageState } from './types.js';
 
-function includesAny(haystack: string, needles: string[]): boolean {
-  return needles.some((needle) => haystack.includes(needle));
+function parseUrl(url: string): URL | undefined {
+  try {
+    return new URL(url);
+  } catch {
+    return undefined;
+  }
+}
+
+function isHost(hostname: string, expected: string): boolean {
+  return hostname === expected || hostname.endsWith(`.${expected}`);
 }
 
 export function inferPageState(url: string, title: string, visibleText: string): TaobaoPageState {
-  const u = url.toLowerCase();
-  const t = `${title}
-${visibleText}`.toLowerCase();
+  const parsed = parseUrl(url);
+  const hostname = parsed?.hostname.toLowerCase() ?? '';
+  const pathname = parsed?.pathname.toLowerCase() ?? '';
+  const normalizedTitle = title.replace(/\s+/g, ' ').trim().toLowerCase();
+  const evidenceText = `${title}\n${visibleText.slice(0, 4000)}`.toLowerCase();
 
-  if (includesAny(u, ['login.taobao.com', 'login.tmall.com']) || includesAny(t, ['登录', 'sign in', 'please log in', '亲，请登录'])) {
+  const loginHost = hostname === 'login.taobao.com' || hostname === 'login.tmall.com';
+  // "亲，请登录" is ordinary header chrome on otherwise-readable product
+  // pages. Only a dedicated login host or an explicit blocking prompt is a
+  // login wall.
+  const loginPrompt = /请登录后(?:继续|查看|操作|购买)|登录后才能(?:继续|查看|操作)|账号登录\s+短信登录|扫码登录\s+密码登录|please log in to continue|sign in to (?:taobao|tmall) to continue/i;
+  if (loginHost || loginPrompt.test(evidenceText)) {
     return 'login-wall';
   }
 
-  if (includesAny(t, ['验证码', 'verify', '安全验证', 'security verification', '滑块'])) {
+  const verificationHost =
+    isHost(hostname, 'sec.taobao.com') ||
+    isHost(hostname, 'punish.taobao.com') ||
+    pathname.includes('/_____tmd_____/');
+  const verificationTitle = /^(?:淘宝\s*[-—|]\s*)?(?:安全验证|访问验证|security verification|verify you are human)$/i;
+  const verificationPrompt =
+    /(?:请|需要|完成|进行|通过|按住|拖动|滑动).{0,24}(?:安全验证|访问验证|人机验证|滑块|拼图)|(?:输入|填写|刷新|获取).{0,12}验证码|验证码.{0,12}(?:输入|错误|过期|刷新|看不清)|verify (?:that )?you are human|complete (?:the )?(?:security )?verification/i;
+  if (verificationHost || verificationTitle.test(normalizedTitle) || verificationPrompt.test(evidenceText)) {
     return 'verification-wall';
   }
 
-  if (includesAny(u, ['item.taobao.com', 'detail.tmall.com'])) {
+  if (hostname === 'item.taobao.com' || hostname === 'detail.tmall.com') {
     return 'product-detail';
   }
 
-  if (u.includes('s.taobao.com/search')) {
+  if (hostname === 's.taobao.com' && pathname === '/search') {
     return 'search-results';
   }
 
-  if (includesAny(u, ['taobao.com', 'www.taobao.com'])) {
-    if (includesAny(t, ['淘宝', 'taobao'])) {
-      return 'home';
-    }
+  if ((hostname === 'taobao.com' || hostname === 'www.taobao.com') && /淘宝|taobao/i.test(evidenceText)) {
+    return 'home';
   }
 
   return 'unknown';

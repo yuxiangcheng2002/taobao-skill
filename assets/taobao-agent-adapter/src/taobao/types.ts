@@ -122,18 +122,55 @@ export interface SearchResult {
   title: string;
   loggedInLikely: boolean;
   candidateCount: number;
+  totalCandidateCount?: number;
   candidates: ProductSummary[];
   networkTap: TaobaoNetworkRecord[];
   screenshotPath?: string;
   requiresUserAction?: boolean;
+  resume?: UserActionResume;
+}
+
+export interface UserActionResume {
+  action: 'search' | 'open-result' | 'open-href' | 'visual-resume';
+  query?: string;
+  index?: number;
+  href?: string;
+  // A wall outcome is resumable once after the user says the challenge has
+  // been cleared. Zero means the observation already consumed that attempt.
+  attemptsRemaining: 0 | 1;
 }
 
 export interface OpenResultResponse {
   query: string;
   index: number;
-  picked: ProductSummary;
-  detail: ProductDetail;
+  picked?: ProductSummary;
+  detail?: ProductDetail;
   networkTap: TaobaoNetworkRecord[];
+  state?: TaobaoPageState;
+  url?: string;
+  title?: string;
+  screenshotPath?: string;
+  requiresUserAction?: boolean;
+  resume?: UserActionResume;
+}
+
+export interface VisualInspectionMetadata {
+  staged: true;
+  tabLeftOpen: true;
+  marker: 'taobao-codex-visual-v1';
+  expectedHref: string;
+  expectedItemId?: string;
+  observedUrl: string;
+  observedTitle: string;
+}
+
+export interface VisualInspectionResponse extends OpenResultResponse {
+  visualInspection: VisualInspectionMetadata;
+}
+
+export interface VisualInspectionCloseResponse {
+  marker: 'taobao-codex-visual-v1';
+  closedCount: number;
 }
 
 export interface DownloadedImage {

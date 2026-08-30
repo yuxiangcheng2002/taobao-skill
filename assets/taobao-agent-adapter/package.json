@@ -8,6 +8,8 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "npm run build && node --test dist/src/test/**/*.test.js",
+    "e2e:deterministic": "npm run build && node scripts/deterministic-e2e.mjs",
+    "e2e:live": "npm run build && node scripts/live-e2e.mjs",
     "smoke:doctor": "npm run build && node dist/src/cli.js doctor --json",
     "smoke:public": "npm run build && TAOBAO_HEADLESS=1 node dist/src/cli.js public-smoke",
     "taobao:probe": "npm run build && node dist/src/cli.js probe-session",
@@ -17,12 +19,17 @@
     "taobao:browser:start": "bash scripts/remote-browser.sh start",
     "taobao:browser:status": "bash scripts/remote-browser.sh status",
     "taobao:browser:stop": "bash scripts/remote-browser.sh stop",
-    "taobao:probe:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js probe-session",
-    "taobao:search:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js search",
-    "taobao:open-result:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js open-result",
-    "taobao:open-href:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js open-href",
+    "taobao:probe:attached": "npm run build && node dist/src/cli.js probe-session",
+    "taobao:search:attached": "npm run build && node dist/src/cli.js search",
+    "taobao:open-result:attached": "npm run build && node dist/src/cli.js open-result",
+    "taobao:open-href:attached": "npm run build && node dist/src/cli.js open-href",
+    "taobao:visual-open:attached": "npm run build && node dist/src/cli.js visual-open",
+    "taobao:visual-resume:attached": "npm run build && node dist/src/cli.js visual-resume",
+    "taobao:visual-close:attached": "npm run build && node dist/src/cli.js visual-close",
     "taobao:download-images": "npm run build && node dist/src/cli.js download-images",
-    "taobao:download-images:attached": "npm run build && TAOBAO_CDP_URL=http://127.0.0.1:9222 node dist/src/cli.js download-images"
+    "taobao:download-images:attached": "npm run build && node dist/src/cli.js download-images",
+    "ultrasource:search": "npm run build && node dist/src/xianyu/cli.js search",
+    "ultrasource:open-href": "npm run build && node dist/src/xianyu/cli.js open-href"
   },
   "dependencies": {
     "playwright-core": "^1.53.0"

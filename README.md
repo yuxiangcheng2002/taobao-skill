@@ -11,6 +11,14 @@ persistent, logged-in Chromium profile — no brittle CSS selectors,
 no headless-detection roulette. Trust signals and community-verified
 buying decisions layer on top.
 
+The skill is deliberately read-only: it never modifies carts, messages
+sellers, enters checkout, or places orders.
+
+It also contains a read-only Xianyu/Goofish sourcing submode. That path is
+inactive unless the user supplies the exact standalone, case-sensitive token
+`Ultrasource`; `scripts/ultrasource.sh` repeats the check before browser or
+network work. See [`references/ultrasource.md`](references/ultrasource.md).
+
 [![TypeScript](https://img.shields.io/badge/TypeScript-adapter-3178C6?logo=typescript&logoColor=white)](assets/taobao-agent-adapter)
 [![Playwright](https://img.shields.io/badge/Playwright-CDP%20attach-2EAD33?logo=playwright&logoColor=white)](assets/taobao-agent-adapter/src/taobao/browser.ts)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A5%2022-339933?logo=nodedotjs&logoColor=white)](#development)
@@ -107,8 +115,8 @@ npx -y degit yuxiangcheng2002/taobao-skill ~/.claude/skills/taobao
 Codex:
 
 ```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-npx -y degit yuxiangcheng2002/taobao-skill "${CODEX_HOME:-$HOME/.codex}/skills/taobao"
+mkdir -p "$HOME/.agents/skills"
+npx -y degit yuxiangcheng2002/taobao-skill "$HOME/.agents/skills/taobao"
 ```
 
 Restart the agent runtime, then ask for anything Taobao-shaped — *"set up
@@ -123,12 +131,16 @@ taobao"*, *"search Taobao for ESP32"*. The agent will:
 Full install details (offline / tarball fallback): [`INSTALL.md`](INSTALL.md).
 Per-OS browser-trust quirks: [`references/browsers.md`](references/browsers.md).
 Agent runtime guidance: [`SKILL.md`](SKILL.md) and
-[`references/workflow.md`](references/workflow.md).
+[`references/workflow.md`](references/workflow.md). Gated Xianyu sourcing:
+[`references/ultrasource.md`](references/ultrasource.md).
+Test design and release gates: [`references/evaluation.md`](references/evaluation.md).
 
 ## Action reference
 
-All actions go through `./scripts/taobao.sh <action> [args...]`. The
-canonical reference with per-action caveats lives in
+Ordinary Taobao actions go through `./scripts/taobao.sh <action> [args...]`.
+Xianyu actions go only through
+`./scripts/ultrasource.sh Ultrasource <action> [args...]`. The canonical
+references with per-action caveats live in
 [`references/workflow.md`](references/workflow.md).
 
 | Action | Purpose |
@@ -136,12 +148,18 @@ canonical reference with per-action caveats lives in
 | `setup` | First-time check / browser picker (TTY menu or `--browser <path>`) |
 | `doctor` | Build + JSON environment summary |
 | `test` | Run the adapter unit tests |
+| `verify` | Required deterministic release gate with auditable evidence |
+| `e2e-live [outputDir]` | Optional read-only live health check (`pass/fail/blocked/drift`) |
 | `browser-start` / `-status` / `-stop` | Lifecycle of the dedicated Chromium |
 | `probe` / `probe-attached` | Visit `taobao.com`, report state + authoritative login status |
 | `search` / `search-attached <query> [--brief]` | Structured search candidates |
 | `open-result` / `-attached <query> <index>` | Re-search and open the Nth candidate |
 | `open-href` / `-attached <url>` | Open a specific URL — index-stable, preferred |
+| `visual-open-attached <url> [--brief]` | Stage one owned foreground tab for Codex Computer Use |
+| `visual-resume-attached [--brief]` | Observe that staged tab once after user clears a wall |
+| `visual-close-attached` | Close only the marker-owned visual tab |
 | `download-images` / `-attached <query> <index>` | Save the listing's gallery |
+| `ultrasource Ultrasource <search\|open-href\|e2e-live>` | Exact-token-gated Xianyu submode; prefer `scripts/ultrasource.sh` directly |
 
 The `*-attached` variants reuse the persistent logged-in profile via CDP —
 and they all drive the **same** browser, so run them strictly one after
@@ -151,7 +169,8 @@ buys nothing.
 
 Two flags matter in agent contexts:
 
-- **`--brief`** (`search`, `open-result`, `open-href`) drops the verbose
+- **`--brief`** (`search`, `open-result`, `open-href`, `visual-open`,
+  `visual-resume`) drops the verbose
   `networkTap` diagnostics from the JSON — a 46-candidate search shrinks
   to ~13 KB instead of blowing past tool-output limits and truncating the
   candidates that matter. Omit it only when diagnosing session/wall
@@ -161,6 +180,11 @@ Two flags matter in agent contexts:
   PNG (~0.5–1.5 MB per call) when only structured fields are needed.
   Keep screenshots **on** for ICs — silkscreen verification is
   non-negotiable there.
+
+Codex desktop can add a bounded live-UI corroboration pass after structured
+extraction. Read [`references/codex-computer-use.md`](references/codex-computer-use.md)
+before using the `visual-*` actions. The adapter remains primary; Computer Use
+may inspect and scroll the owned tab, never drive shopping controls.
 
 And one standalone helper:
 
@@ -322,16 +346,18 @@ browser config, personal preferences) lives under `~/.taobao-agent/`.
 ├── INSTALL.md                            # Bootstrap steps for tarball recipients
 ├── scripts/
 │   ├── taobao.sh                         # Wrapper: cd into adapter, run npm scripts
+│   ├── ultrasource.sh                    # Exact-token gate for Xianyu actions
 │   ├── setup.sh                          # First-time environment / browser picker
 │   └── bilibili-comments.sh              # Community check: pull video comments, no login
 ├── references/
 │   ├── workflow.md                       # Agent runbook (actions, fields, fallbacks)
+│   ├── ultrasource.md                    # Gated Xianyu sourcing + safety boundary
 │   ├── community-check.md                # Sentiment cross-check playbook + subagent template
 │   └── browsers.md                       # Per-OS install / trust notes
 └── assets/taobao-agent-adapter/          # Bundled TypeScript adapter
     ├── src/
     │   ├── cli.ts                        # CLI entrypoint (--brief, --no-screenshot)
-    │   └── taobao/
+    │   ├── taobao/
     │       ├── adapter.ts                # search / openResult / openByHref / mtop login probe
     │       ├── browser.ts                # CDP attach + persistent-context launch
     │       ├── parser.ts                 # Candidate field extraction + clone detection
@@ -339,6 +365,7 @@ browser config, personal preferences) lives under `~/.taobao-agent/`.
     │       ├── state.ts                  # Page-state inference (home / search / detail / wall)
     │       ├── config.ts                 # Project root, data dir, browser path
     │       └── types.ts                  # Shared response shapes
+    │   └── xianyu/                       # Ultrasource parser, adapter, CLI, types
     └── scripts/remote-browser.sh         # Start / stop / status the dedicated Chromium
 
 ~/.taobao-agent/                          (user data — survives skill re-installs)
@@ -414,7 +441,7 @@ browser config, personal preferences) lives under `~/.taobao-agent/`.
 cd assets/taobao-agent-adapter
 npm install                  # auto-runs on first wrapper invocation
 npm run build                # tsc -p tsconfig.json
-npm test                     # 25 unit tests covering parser + state
+npm test                     # unit, URL/state, trigger, and adapter-contract tests
 npm run smoke:doctor         # JSON env summary
 ```
 

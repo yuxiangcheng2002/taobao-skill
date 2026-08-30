@@ -3,7 +3,7 @@
 ## Project paths
 - Bundled project root: `assets/taobao-agent-adapter` (resolved relative to this skill directory)
 - Override project root with `TAOBAO_PROJECT_DIR` when you want an external checkout
-- **Read-only installs** (e.g. Codex copies skills into `~/.codex/skills`
+- **Read-only installs** (e.g. Codex copies skills into `~/.agents/skills`
   unwritable to normal tool calls): the wrapper mirrors the adapter sources
   to `$TAOBAO_DATA_DIR/runtime/taobao-agent-adapter`, building and running
   there. Re-synced on every invocation (~1s when warm; `node_modules`/`dist`
@@ -20,7 +20,10 @@
   - `profiles/taobao-chromium/` — Chrome login profile
   - `playwright/` — `remote-browser.sh` launch log
   - `downloads/screenshots/`, `downloads/galleries/` — generated artefacts
-- Attached browser port: `9222`
+- Attached browser port: `9222` by default; override with
+  `TAOBAO_REMOTE_DEBUG_PORT`. For attached actions only, the wrapper derives
+  `TAOBAO_CDP_URL` from the same value so launcher and attached actions cannot
+  disagree. Non-attached actions do not receive a default CDP endpoint.
 
 ## Default command wrapper
 Invoke the wrapper from inside the installed skill directory:
@@ -32,11 +35,11 @@ Invoke the wrapper from inside the installed skill directory:
 Typical absolute paths depending on how the skill was installed:
 
 ```bash
-# Claude Code (macOS, Linux, Windows via Git Bash / WSL)
+# Claude Code (macOS, Linux, Windows via Git Bash)
 ~/.claude/skills/taobao/scripts/taobao.sh <action> [args...]
 
 # Codex
-"${CODEX_HOME:-$HOME/.codex}/skills/taobao/scripts/taobao.sh" <action> [args...]
+"$HOME/.agents/skills/taobao/scripts/taobao.sh" <action> [args...]
 ```
 
 The wrapper auto-detects its own location, runs `npm install` the first time
@@ -90,6 +93,7 @@ per-browser install/trust notes.
 taobao.sh install
 taobao.sh doctor
 taobao.sh test
+taobao.sh verify
 taobao.sh browser-status
 ```
 
@@ -101,9 +105,30 @@ taobao.sh probe-attached
 taobao.sh search-attached "esp32"
 taobao.sh open-result-attached "esp32" 1
 taobao.sh open-href-attached "https://item.taobao.com/item.htm?id=..."
+taobao.sh visual-open-attached "https://item.taobao.com/item.htm?id=..." --brief
+taobao.sh visual-resume-attached --brief
+taobao.sh visual-close-attached
 taobao.sh download-images-attached "esp32" 1
 taobao.sh browser-stop
 ```
+
+### Release and live health checks
+
+```bash
+taobao.sh verify     # deterministic, isolated, no real Taobao traffic
+taobao.sh e2e-live   # optional live, read-only, attached, strictly sequential
+```
+
+See `references/evaluation.md` for gates, evidence locations, and the distinct
+`pass`, `fail`, `blocked`, and `drift` outcomes.
+
+### Codex Computer Use sidecar
+
+The three `visual-*-attached` actions stage one marker-owned foreground tab for
+Codex Computer Use, observe it once after a user-cleared wall, and close only
+that marked tab. They do not replace `open-href`: use them only when live UI
+corroboration is needed. Full routing, ownership, wall, output, and optional UI
+E2E rules live in `references/codex-computer-use.md`.
 
 ### Non-attached workflow
 ```bash

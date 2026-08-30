@@ -5,6 +5,11 @@ This skill attaches to a dedicated Chromium-family browser via
 the Chrome DevTools Protocol will work. Use the notes below when `setup.sh`
 asks which browser to pick, or when you need to install one.
 
+Auto-detection covers macOS, native Linux, and Windows Git Bash. Under WSL,
+only native Linux Chromium through WSLg is supported. Windows-host Chrome
+launch/profile/CDP bridging from WSL is not implemented; do not treat its
+presence under `/mnt/c` as a supported browser path.
+
 All browsers the skill launches open in their **own dedicated profile window**
 (`~/.taobao-agent/profiles/taobao-chromium`, overridable via `TAOBAO_DATA_DIR`),
 independent from whatever you use for daily browsing. Installing a second

@@ -149,6 +149,12 @@ Scale the sweep to stakes: one video's comments for a cheap trial
 purchase; multi-source (2–3 videos + roundups) when the user will buy in
 quantity or build on the result.
 
+For consequential or bulk purchases, require at least two independent,
+recent sources and record: source/date, whether the speaker directly owned or
+tested the product, load-bearing evidence, conflicts, and per-brand verdict.
+If this threshold is not met, report `insufficient evidence`; do not let a
+composite score disguise the missing evidence.
+
 ## Reporting back
 
 - When community evidence contradicts an earlier listing-data

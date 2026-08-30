@@ -4,7 +4,15 @@ import { loadConfig } from './config.js';
 export interface BrowserSession {
   context: BrowserContext;
   page: Page;
-  cleanup: () => Promise<void>;
+  attached: boolean;
+  cleanup: (options?: { keepPageOpen?: boolean }) => Promise<void>;
+}
+
+export interface BrowserSessionOptions {
+  // Ordinary adapter work stays in background tabs. Visual verification is
+  // the deliberate exception: Computer Use needs a genuinely foreground-
+  // created target so macOS Chrome paints the compositor surface reliably.
+  foreground?: boolean;
 }
 
 // Open a new tab without macOS focus theft.
@@ -52,17 +60,20 @@ async function createBackgroundPage(browser: Browser, context: BrowserContext): 
   return page;
 }
 
-async function attachToRunningBrowser(cdpUrl: string): Promise<BrowserSession> {
+async function attachToRunningBrowser(cdpUrl: string, options: BrowserSessionOptions = {}): Promise<BrowserSession> {
   const browser: Browser = await chromium.connectOverCDP(cdpUrl);
   const context = browser.contexts()[0] ?? (await browser.newContext());
-  const page = await createBackgroundPage(browser, context);
+  const page = options.foreground ? await context.newPage() : await createBackgroundPage(browser, context);
   page.setDefaultTimeout(loadConfig().defaultTimeoutMs);
   return {
     context,
     page,
-    cleanup: async () => {
+    attached: true,
+    cleanup: async (options = {}) => {
       try {
-        await page.close().catch(() => {});
+        if (!options.keepPageOpen) {
+          await page.close().catch(() => {});
+        }
       } finally {
         await browser.close().catch(() => {});
       }
@@ -70,10 +81,10 @@ async function attachToRunningBrowser(cdpUrl: string): Promise<BrowserSession> {
   };
 }
 
-export async function launchPersistentTaobaoContext(): Promise<BrowserSession> {
+export async function launchPersistentTaobaoContext(options: BrowserSessionOptions = {}): Promise<BrowserSession> {
   const cdpUrl = process.env.TAOBAO_CDP_URL;
   if (cdpUrl) {
-    return attachToRunningBrowser(cdpUrl);
+    return attachToRunningBrowser(cdpUrl, options);
   }
 
   const config = loadConfig();
@@ -96,7 +107,11 @@ export async function launchPersistentTaobaoContext(): Promise<BrowserSession> {
   return {
     context,
     page,
-    cleanup: async () => {
+    attached: false,
+    cleanup: async (options = {}) => {
+      if (options.keepPageOpen) {
+        throw new Error('Keeping a visual inspection tab open requires an attached CDP browser');
+      }
       await context.close();
     }
   };

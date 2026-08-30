@@ -1,0 +1,22 @@
+[
+  {"query":"Ultrasource find a used KEYENCE LK-G5001 controller on 闲鱼 and compare seller provenance, included cables, and visible condition.","should_trigger":true},
+  {"query":"请用 Ultrasource，在闲鱼找三条 400mm 左右的原装上银 MGN12H 拆机导轨，只读比较。","should_trigger":true},
+  {"query":"Ultrasource inspect https://www.goofish.com/item?id=1068945084433 and separate visible evidence from seller claims.","should_trigger":true},
+  {"query":"I need an obsolete industrial green-phosphor display for an art prototype. Ultrasource the weirdest legitimate Xianyu leads.","should_trigger":true},
+  {"query":"[Ultrasource] compare used FLIR Lepton breakout boards on Xianyu; flag missing modules and stock-photo listings.","should_trigger":true},
+  {"query":"Ultrasource，搜一下闲鱼上的老式点阵翻牌显示器，保留有趣但不完全匹配的结果。","should_trigger":true},
+  {"query":"Can Ultrasource find a surplus Maxon EC motor with matching encoder and gearbox on 闲鱼?","should_trigger":true},
+  {"query":"Use the exact listing links from the prior Ultrasource results and inspect candidates two and four without messaging anyone.","should_trigger":true},
+  {"query":"Ultrasource check whether any used Orbbec Gemini 336 units list the power cable and original mount.","should_trigger":true},
+  {"query":"What safety boundary does Ultrasource impose before we use it for Xianyu sourcing?","should_trigger":true},
+  {"query":"ultrasource find a used KEYENCE controller on Xianyu.","should_trigger":false},
+  {"query":"ULTRASOURCE search 闲鱼 for an industrial camera.","should_trigger":false},
+  {"query":"UltraSource inspect this Goofish listing for me.","should_trigger":false},
+  {"query":"UltrasourceX should find used MGN12 rails.","should_trigger":false},
+  {"query":"Find a used MGN12 rail on 闲鱼 and give me five links.","should_trigger":false},
+  {"query":"Search Xianyu for a cheap thermal camera and compare the sellers.","should_trigger":false},
+  {"query":"Search Taobao for a new MGN12 rail from a Tmall flagship store.","should_trigger":false},
+  {"query":"Analyze Xianyu's business model and why C2C recommerce grew in China.","should_trigger":false},
+  {"query":"Build a web landing page with a playful yellow visual style inspired by Xianyu.","should_trigger":false},
+  {"query":"OCR this screenshot from a Xianyu listing; do not browse or look up the product.","should_trigger":false}
+]

@@ -62,18 +62,28 @@ export function parseIceContextDetail(raw: unknown): IceContextDetail | undefine
 
 // Detail-host classification — used to decide whether DOM-fallback on a
 // page that *should* expose ICE context is worth warning about.
-const DETAIL_HOSTS = ['detail.tmall.com', 'item.taobao.com'];
+const DETAIL_HOSTS = ['detail.tmall.com', 'item.taobao.com'] as const;
 
-export function isDetailHost(url: string): boolean {
+export function parseAllowedProductUrl(raw: string): URL | undefined {
   try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return DETAIL_HOSTS.includes(hostname);
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'https:') return undefined;
+    if (!(DETAIL_HOSTS as readonly string[]).includes(parsed.hostname.toLowerCase())) return undefined;
+    if (parsed.port) return undefined;
+    return parsed;
   } catch {
-    return false;
+    return undefined;
   }
 }
 
-const PRODUCT_HOST_PATTERNS = ['item.taobao.com', 'detail.tmall.com'];
+export function isAllowedProductUrl(raw: string): boolean {
+  return Boolean(parseAllowedProductUrl(raw));
+}
+
+export function isDetailHost(url: string): boolean {
+  return isAllowedProductUrl(url);
+}
+
 const IMAGE_HOST_SUFFIXES = ['taobao.com', 'tmall.com', 'alicdn.com'];
 
 // Province / municipality / SAR names used as the search-result location field.
@@ -239,7 +249,7 @@ export function filterProductCandidates(items: ProductCandidate[]): ProductCandi
     const text = normalizeWhitespace(item.text);
 
     if (!href || !text) continue;
-    if (!PRODUCT_HOST_PATTERNS.some((pattern) => href.includes(pattern))) continue;
+    if (!isAllowedProductUrl(href)) continue;
 
     const imageUrls = collectInterestingImageUrls(item.imageUrls ?? [item.thumbnailUrl]);
     const thumbnailUrl = normalizeImageUrl(item.thumbnailUrl) ?? imageUrls[0];
@@ -266,7 +276,7 @@ export function filterProductCandidates(items: ProductCandidate[]): ProductCandi
 }
 
 export function detectPlatform(href: string, shop?: string): ProductPlatform {
-  const isTmall = href.includes('detail.tmall.com');
+  const isTmall = parseAllowedProductUrl(href)?.hostname.toLowerCase() === 'detail.tmall.com';
   if (!isTmall) return 'taobao';
   return shop && /旗舰店$/.test(shop) ? 'tmall-flagship' : 'tmall';
 }

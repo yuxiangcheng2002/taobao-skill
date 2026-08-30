@@ -2,7 +2,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { Page } from 'playwright-core';
-import { launchPersistentTaobaoContext } from './browser.js';
+import {
+  launchPersistentTaobaoContext,
+  type BrowserSession,
+  type BrowserSessionOptions
+} from './browser.js';
 import { doctor, loadConfig } from './config.js';
 import { NetworkTap } from './network.js';
 import {
@@ -12,6 +16,7 @@ import {
   extractPriceTiers,
   extractShopFromHeadText,
   filterProductCandidates,
+  isAllowedProductUrl,
   isDetailHost,
   parseIceContextDetail,
   pickProductImages,
@@ -27,7 +32,9 @@ import {
   PublicSmokeResult,
   SearchResult,
   SessionProbe,
-  TaobaoPageState
+  TaobaoPageState,
+  VisualInspectionCloseResponse,
+  VisualInspectionResponse
 } from './types.js';
 
 export interface DetailOptions {
@@ -50,7 +57,7 @@ export interface DetailOptions {
 // caller can surface the drop in fidelity rather than silently trusting
 // weaker fields.
 async function readIceContextRaw(page: Page): Promise<unknown | undefined> {
-  return await page
+  const read = async () => await page
     .evaluate(() => {
       const ctx = (window as unknown as { __ICE_APP_CONTEXT__?: any }).__ICE_APP_CONTEXT__;
       const res = ctx?.loaderData?.home?.data?.res;
@@ -68,6 +75,22 @@ async function readIceContextRaw(page: Page): Promise<unknown | undefined> {
       };
     })
     .catch(() => undefined);
+
+  const immediate = await read();
+  if (immediate) return immediate;
+
+  // Current item.taobao.com sometimes paints a visible shell before the
+  // inline ICE bootstrap assigns loaderData. `body: visible` is therefore
+  // not sufficient proof that SSR context is ready. Wait briefly, then read
+  // once more; do not turn a missing context into a fatal navigation error.
+  await page
+    .waitForFunction(
+      () => Boolean((window as unknown as { __ICE_APP_CONTEXT__?: any }).__ICE_APP_CONTEXT__?.loaderData?.home?.data?.res),
+      undefined,
+      { timeout: 3000 }
+    )
+    .catch(() => undefined);
+  return await read();
 }
 
 async function extractIceContextDetail(page: Page) {
@@ -150,20 +173,62 @@ function slugify(value: string): string {
 // / layout claims that text extraction misses. Failures are silent \u2014 a missing
 // screenshot is a degraded result, not a fatal one.
 async function captureScreenshot(page: Page, label: string): Promise<string | undefined> {
+  const config = loadConfig();
+  fs.mkdirSync(config.screenshotsDir, { recursive: true });
+  const slug = slugify(label);
+  const filePath = path.join(config.screenshotsDir, `${slug}-${Date.now()}.png`);
   try {
-    const config = loadConfig();
-    fs.mkdirSync(config.screenshotsDir, { recursive: true });
-    const slug = slugify(label);
-    const filePath = path.join(config.screenshotsDir, `${slug}-${Date.now()}.png`);
     await page.screenshot({ path: filePath, fullPage: true });
     return filePath;
   } catch {
-    return undefined;
+    // Very long Taobao detail pages can exceed Chromium's maximum bitmap
+    // height. Keep visual evidence by falling back to the current viewport.
+    try {
+      await page.screenshot({ path: filePath, fullPage: false });
+      return filePath;
+    } catch {
+      return undefined;
+    }
   }
 }
 
 function isUserActionState(state: TaobaoPageState): boolean {
   return state === 'verification-wall' || state === 'login-wall';
+}
+
+const VISUAL_TAB_MARKER = 'taobao-codex-visual-v1' as const;
+const VISUAL_WINDOW_NAME_PREFIX = `${VISUAL_TAB_MARKER}:`;
+
+async function visualWindowName(page: Page): Promise<string> {
+  return await page.evaluate(() => window.name).catch(() => '');
+}
+
+async function findStagedVisualPages(session: BrowserSession): Promise<Page[]> {
+  const matches: Page[] = [];
+  for (const page of session.context.pages()) {
+    if (page === session.page || page.isClosed()) continue;
+    if ((await visualWindowName(page)).startsWith(VISUAL_WINDOW_NAME_PREFIX)) {
+      matches.push(page);
+    }
+  }
+  return matches;
+}
+
+function expectedHrefFromWindowName(name: string): string | undefined {
+  if (!name.startsWith(VISUAL_WINDOW_NAME_PREFIX)) return undefined;
+  try {
+    return decodeURIComponent(name.slice(VISUAL_WINDOW_NAME_PREFIX.length));
+  } catch {
+    return undefined;
+  }
+}
+
+function itemIdFromHref(href: string): string | undefined {
+  try {
+    return new URL(href).searchParams.get('id') ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function extensionFromUrl(url: string, contentType: string): string {
@@ -263,6 +328,15 @@ async function collectAnchorCandidates(page: Page): Promise<ProductCandidate[]> 
 
   const html = await page.content();
   return collectHtmlFallbackCandidates(html);
+}
+
+async function assertExpectedDetailLanding(page: Page): Promise<void> {
+  if (isAllowedProductUrl(page.url())) return;
+  const title = await page.title();
+  const text = await snapshotText(page);
+  const state = inferPageState(page.url(), title, text);
+  if (isUserActionState(state)) return;
+  throw new Error(`Unexpected redirect outside the Taobao/Tmall product boundary: ${page.url()}`);
 }
 
 async function extractProductInfoFromPage(
@@ -373,8 +447,12 @@ async function extractProductInfoFromPage(
 export class TaobaoAgentAdapter {
   readonly networkTap = new NetworkTap();
 
+  constructor(
+    private readonly launchSession: (options?: BrowserSessionOptions) => Promise<BrowserSession> = launchPersistentTaobaoContext
+  ) {}
+
   async runPublicSmoke(): Promise<PublicSmokeResult> {
-    const session = await launchPersistentTaobaoContext();
+    const session = await this.launchSession();
     this.networkTap.attach(session.page);
     try {
       await session.page.goto('https://www.taobao.com/', { waitUntil: 'domcontentloaded' });
@@ -392,7 +470,7 @@ export class TaobaoAgentAdapter {
   }
 
   async probeSession(): Promise<SessionProbe> {
-    const session = await launchPersistentTaobaoContext();
+    const session = await this.launchSession();
     this.networkTap.attach(session.page);
     try {
       await session.page.goto('https://www.taobao.com/', { waitUntil: 'domcontentloaded' });
@@ -411,7 +489,7 @@ export class TaobaoAgentAdapter {
   }
 
   async search(query: string): Promise<SearchResult> {
-    const session = await launchPersistentTaobaoContext();
+    const session = await this.launchSession();
     this.networkTap.attach(session.page);
     try {
       const url = `https://s.taobao.com/search?q=${encodeURIComponent(query)}`;
@@ -437,7 +515,12 @@ export class TaobaoAgentAdapter {
           candidates: [],
           networkTap: this.networkTap.records.slice(0, 12),
           screenshotPath,
-          requiresUserAction: true
+          requiresUserAction: true,
+          resume: {
+            action: 'search',
+            query,
+            attemptsRemaining: 1
+          }
         };
       }
 
@@ -446,7 +529,8 @@ export class TaobaoAgentAdapter {
         await session.page.waitForTimeout(1500);
         rawCandidates = await collectAnchorCandidates(session.page);
       }
-      const candidates = rawCandidates.map((candidate, index) => summarizeCandidate(candidate, index + 1));
+      const allCandidates = rawCandidates.map((candidate, index) => summarizeCandidate(candidate, index + 1));
+      const candidates = allCandidates.slice(0, 50);
 
       return {
         query,
@@ -455,7 +539,8 @@ export class TaobaoAgentAdapter {
         title,
         loggedInLikely: await detectLoggedIn(session.page),
         candidateCount: candidates.length,
-        candidates: candidates.slice(0, 10),
+        totalCandidateCount: allCandidates.length,
+        candidates,
         networkTap: this.networkTap.records.slice(0, 12)
       };
     } finally {
@@ -465,16 +550,35 @@ export class TaobaoAgentAdapter {
 
   async openResult(query: string, index: number, opts: DetailOptions = {}): Promise<OpenResultResponse> {
     const searchResult = await this.search(query);
+    if (searchResult.requiresUserAction) {
+      return {
+        query,
+        index,
+        state: searchResult.state,
+        url: searchResult.url,
+        title: searchResult.title,
+        screenshotPath: searchResult.screenshotPath,
+        requiresUserAction: true,
+        resume: {
+          action: 'open-result',
+          query,
+          index,
+          attemptsRemaining: 1
+        },
+        networkTap: searchResult.networkTap
+      };
+    }
     const picked = searchResult.candidates[index - 1];
     if (!picked) {
       throw new Error(`No candidate at index ${index}. Found ${searchResult.candidateCount} candidates.`);
     }
 
-    const session = await launchPersistentTaobaoContext();
+    const session = await this.launchSession();
     this.networkTap.attach(session.page);
     try {
       await session.page.goto(picked.href, { waitUntil: 'domcontentloaded' });
       await session.page.locator('body').waitFor({ state: 'visible' });
+      await assertExpectedDetailLanding(session.page);
       const detail = await extractProductInfoFromPage(session.page, {
         screenshot: opts.screenshot,
         label: `open-result-${slugify(query)}-${index}`
@@ -484,6 +588,14 @@ export class TaobaoAgentAdapter {
         index,
         picked,
         detail,
+        state: detail.state,
+        url: detail.url,
+        title: detail.title,
+        screenshotPath: detail.screenshotPath,
+        requiresUserAction: detail.requiresUserAction,
+        resume: detail.requiresUserAction
+          ? { action: 'open-result', query, index, attemptsRemaining: 1 }
+          : undefined,
         networkTap: this.networkTap.records.slice(0, 15)
       };
     } finally {
@@ -496,11 +608,15 @@ export class TaobaoAgentAdapter {
   // calls (ad slots, personalization), so opening by index can drift to a
   // different listing than the agent intended.
   async openByHref(href: string, opts: DetailOptions = {}): Promise<OpenResultResponse> {
-    const session = await launchPersistentTaobaoContext();
+    if (!isAllowedProductUrl(href)) {
+      throw new Error('open-href only accepts https://item.taobao.com or https://detail.tmall.com product URLs');
+    }
+    const session = await this.launchSession();
     this.networkTap.attach(session.page);
     try {
       await session.page.goto(href, { waitUntil: 'domcontentloaded' });
       await session.page.locator('body').waitFor({ state: 'visible' });
+      await assertExpectedDetailLanding(session.page);
       const detail = await extractProductInfoFromPage(session.page, {
         screenshot: opts.screenshot,
         label: 'open-href'
@@ -521,6 +637,14 @@ export class TaobaoAgentAdapter {
         index: 0,
         picked,
         detail,
+        state: detail.state,
+        url: detail.url,
+        title: detail.title,
+        screenshotPath: detail.screenshotPath,
+        requiresUserAction: detail.requiresUserAction,
+        resume: detail.requiresUserAction
+          ? { action: 'open-href', href, attemptsRemaining: 1 }
+          : undefined,
         networkTap: this.networkTap.records.slice(0, 15)
       };
     } finally {
@@ -528,8 +652,168 @@ export class TaobaoAgentAdapter {
     }
   }
 
+  async stageVisualInspection(href: string): Promise<VisualInspectionResponse> {
+    if (!isAllowedProductUrl(href)) {
+      throw new Error('visual-open only accepts https://item.taobao.com or https://detail.tmall.com product URLs');
+    }
+
+    const session = await this.launchSession({ foreground: true });
+    let keepPageOpen = false;
+    try {
+      if (!session.attached) {
+        throw new Error('visual-open requires an attached CDP browser');
+      }
+
+      // Retire only tabs created by this workflow. Never close arbitrary user
+      // tabs in the dedicated profile, even when their URL looks similar.
+      for (const staged of await findStagedVisualPages(session)) {
+        await staged.close().catch(() => {});
+      }
+
+      this.networkTap.attach(session.page);
+      await session.page.goto(href, { waitUntil: 'domcontentloaded' });
+      await session.page.locator('body').waitFor({ state: 'visible' });
+      await assertExpectedDetailLanding(session.page);
+      const detail = await extractProductInfoFromPage(session.page, {
+        screenshot: true,
+        label: 'visual-open'
+      });
+      await session.page.evaluate(
+        (name) => { window.name = name; },
+        `${VISUAL_WINDOW_NAME_PREFIX}${encodeURIComponent(href)}`
+      );
+      await session.page.bringToFront();
+      keepPageOpen = true;
+
+      const synthesizedTitle = detail.name ?? detail.title;
+      return {
+        query: '',
+        index: 0,
+        picked: {
+          index: 0,
+          title: synthesizedTitle,
+          price: detail.price,
+          sales: detail.sales,
+          shop: detail.shop,
+          href,
+          rawText: synthesizedTitle,
+          platform: detectPlatform(href, detail.shop)
+        },
+        detail,
+        state: detail.state,
+        url: detail.url,
+        title: detail.title,
+        screenshotPath: detail.screenshotPath,
+        requiresUserAction: detail.requiresUserAction,
+        resume: detail.requiresUserAction
+          ? { action: 'visual-resume', href, attemptsRemaining: 1 }
+          : undefined,
+        networkTap: this.networkTap.records.slice(0, 15),
+        visualInspection: {
+          staged: true,
+          tabLeftOpen: true,
+          marker: VISUAL_TAB_MARKER,
+          expectedHref: href,
+          expectedItemId: itemIdFromHref(href),
+          observedUrl: detail.url,
+          observedTitle: detail.title
+        }
+      };
+    } finally {
+      await session.cleanup({ keepPageOpen });
+    }
+  }
+
+  async resumeVisualInspection(): Promise<VisualInspectionResponse> {
+    const session = await this.launchSession();
+    let keepPageOpen = false;
+    try {
+      if (!session.attached) {
+        throw new Error('visual-resume requires an attached CDP browser');
+      }
+      const stagedPages = await findStagedVisualPages(session);
+      if (stagedPages.length !== 1) {
+        throw new Error(`visual-resume requires exactly one staged tab; found ${stagedPages.length}`);
+      }
+
+      const staged = stagedPages[0];
+      const expectedHref = expectedHrefFromWindowName(await visualWindowName(staged));
+      if (!expectedHref || !isAllowedProductUrl(expectedHref)) {
+        throw new Error('staged visual tab lost its exact product URL ownership marker');
+      }
+      await session.page.close().catch(() => {});
+      this.networkTap.attach(staged);
+      await staged.locator('body').waitFor({ state: 'visible' });
+      await assertExpectedDetailLanding(staged);
+      const detail = await extractProductInfoFromPage(staged, {
+        screenshot: true,
+        label: 'visual-resume'
+      });
+      await staged.bringToFront();
+      keepPageOpen = true;
+
+      const synthesizedTitle = detail.name ?? detail.title;
+      return {
+        query: '',
+        index: 0,
+        picked: {
+          index: 0,
+          title: synthesizedTitle,
+          price: detail.price,
+          sales: detail.sales,
+          shop: detail.shop,
+          href: expectedHref,
+          rawText: synthesizedTitle,
+          platform: detectPlatform(expectedHref, detail.shop)
+        },
+        detail,
+        state: detail.state,
+        url: detail.url,
+        title: detail.title,
+        screenshotPath: detail.screenshotPath,
+        requiresUserAction: detail.requiresUserAction,
+        resume: detail.requiresUserAction
+          ? { action: 'visual-resume', href: expectedHref, attemptsRemaining: 0 }
+          : undefined,
+        networkTap: this.networkTap.records.slice(0, 15),
+        visualInspection: {
+          staged: true,
+          tabLeftOpen: true,
+          marker: VISUAL_TAB_MARKER,
+          expectedHref,
+          expectedItemId: itemIdFromHref(expectedHref),
+          observedUrl: detail.url,
+          observedTitle: detail.title
+        }
+      };
+    } finally {
+      await session.cleanup({ keepPageOpen });
+    }
+  }
+
+  async closeVisualInspection(): Promise<VisualInspectionCloseResponse> {
+    const session = await this.launchSession();
+    try {
+      if (!session.attached) {
+        throw new Error('visual-close requires an attached CDP browser');
+      }
+      const stagedPages = await findStagedVisualPages(session);
+      for (const page of stagedPages) {
+        await page.close().catch(() => {});
+      }
+      return { marker: VISUAL_TAB_MARKER, closedCount: stagedPages.length };
+    } finally {
+      await session.cleanup();
+    }
+  }
+
   async downloadImages(query: string, index: number, outputDir?: string): Promise<DownloadImagesResponse> {
     const result = await this.openResult(query, index);
+    if (result.requiresUserAction || !result.detail || !result.picked) {
+      throw new Error(
+        `Image download blocked by ${result.state ?? 'user-action'} at ${result.url ?? 'unknown URL'}`
+      );
+    }
     const imageUrls = collectInterestingImageUrls([...result.detail.imageUrls, result.picked.thumbnailUrl]).slice(0, 20);
 
     const config = loadConfig();

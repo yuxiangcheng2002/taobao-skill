@@ -20,7 +20,7 @@ docs, SSR fallback behaviour) see:
 cd assets/taobao-agent-adapter
 npm install        # installed automatically by the wrapper on first run
 npm run build      # tsc -p tsconfig.json
-npm test           # 21 unit tests
+npm test           # unit and adapter-contract tests
 npm run smoke:doctor   # JSON env summary
 ```
 

@@ -1,14 +1,16 @@
 ---
 name: taobao
 description: >-
-  Use the Taobao agent adapter project to navigate Taobao through a persistent
-  Chromium profile, attached remote-debugging browser, Playwright state
-  detection, structured search results, and product-detail extraction. Use
-  when a user asks to search Taobao, inspect products, compare vendors, open
-  the Nth result, attach to the dedicated Taobao browser, continue work inside
-  the taobao-agent-adapter project, decide which of several Taobao candidates
-  to buy (community-sentiment cross-check), or mention 淘宝 in any
-  search/purchase request.
+  Search and inspect Taobao/Tmall listings in read-only mode through a
+  persistent Chromium profile. Use for 淘宝/Tmall product searches, listing
+  URLs, vendor comparisons, product-detail or screenshot checks, opening a
+  numbered result, purchase recommendations, or maintenance of the bundled
+  taobao-agent-adapter. Cross-check community evidence only when product
+  quality is experiential and the purchase stakes justify it. Also expose a
+  read-only Xianyu/Goofish sourcing submode only when the original prompt
+  contains the exact, case-sensitive, standalone token Ultrasource; without
+  that token, never access Xianyu. Do not place orders, message sellers, or
+  modify marketplace state.
 ---
 
 # taobao
@@ -20,21 +22,29 @@ Use the bundled Taobao adapter project inside this skill by default.
 - Dedicated profile: `~/.taobao-agent/profiles/taobao-chromium` (override with `TAOBAO_DATA_DIR`)
 - Preferred browser workflow: attached Chromium on port `9222`
 - Wrapper: `scripts/taobao.sh <action> [args...]` — run `taobao.sh help` for the full action list
-- Cross-platform: the wrapper and `remote-browser.sh` auto-detect a Chromium-family browser on macOS, Linux, and Windows (Git Bash / WSL). Set `CHROMIUM_PATH` only if auto-detection fails.
+- Cross-platform: auto-detection covers macOS, native Linux, and Windows Git
+  Bash. WSL supports only a native Linux Chromium (normally through WSLg), not
+  Windows-host Chrome. Set `CHROMIUM_PATH` when auto-detection fails.
 
 ## On activation
 
-1. Read `references/workflow.md`.
-2. **If `$TAOBAO_DATA_DIR/PREFERENCES.md` exists** (default
+1. If the original prompt contains the exact standalone token `Ultrasource`,
+   read `references/ultrasource.md` and use only its Xianyu submode. Otherwise,
+   read `references/workflow.md` and follow the ordinary Taobao/Tmall flow.
+2. **For live searches or recommendations where personalization matters, if
+   `$TAOBAO_DATA_DIR/PREFERENCES.md` exists** (default
    `~/.taobao-agent/PREFERENCES.md`), read it. It carries this user's
    personal preferences for the taobao skill — trusted vendors, shipping
    defaults, browser handling preferences, anything specific to them
    that should not ship in the skill itself. Apply its guidance for the
    rest of the session. The file is optional; absence just means no
    personalization yet.
-3. **On the very first invocation in a session, run `./scripts/taobao.sh setup`
-   before anything else.** Do not jump straight to `browser-status`, `search`,
-   or any other action. This is a per-session check, not a one-time install
+   Do not read this private file for code review, documentation, tests, or
+   other adapter-maintenance tasks.
+3. **Before the first live adapter/browser action in a session, run
+   `./scripts/taobao.sh setup`.** Documentation, code review, and deterministic
+   `test`/`verify` work do not require setup or access to user state. For live
+   work this is a per-session check, not a one-time install
    step: the report takes ~1s and reveals misconfiguration (missing browser,
    broken symlink, Gatekeeper quarantine on macOS) that other actions would
    hit as opaque failures. If the report is clean, proceed straight to the
@@ -42,10 +52,57 @@ Use the bundled Taobao adapter project inside this skill by default.
    flow (browser pick, login) under "Initial setup" below. Treat "already
    set up" only as evidence from the setup report itself, not as an
    assumption.
-4. Use `scripts/taobao.sh` for all actions (doctor, probe, search, open-result,
-   browser-*). The wrapper `cd`s into the project dir and delegates to
-   `npm run` scripts.
-5. Work in the project dir, not in this skill folder.
+4. Use `scripts/taobao.sh` for ordinary actions (doctor, probe, search,
+   open-result, browser-*). For Xianyu use only
+   `scripts/ultrasource.sh Ultrasource ...`; its exact-token gate must run
+   before any Xianyu action. The wrappers `cd` into the project dir and
+   delegate to `npm run` scripts.
+5. For adapter maintenance, work in `assets/taobao-agent-adapter`; keep skill
+   instructions and evaluation artifacts in their documented locations.
+6. When Codex Computer Use is requested or a live UI field needs corroboration,
+   read `references/codex-computer-use.md` and follow the installed
+   `computer-use` skill. Keep the adapter first; Computer Use is a bounded
+   verification sidecar, not the navigation driver.
+
+## Safety boundary
+
+- The adapter is read-only: search, inspect, screenshot, and download public
+  listing images only.
+- Never add to cart, place an order, initiate checkout/payment, message a
+  seller, or change account/profile state.
+- Accept direct product navigation only on exact HTTPS hosts
+  `item.taobao.com` and `detail.tmall.com`. Never weaken this boundary to a
+  substring match.
+- Treat `login-wall` and `verification-wall` as user-action outcomes. Surface
+  the screenshot once and pause; do not retry or attempt to bypass a challenge.
+- Computer Use remains read-only under this skill. It may inspect and scroll an
+  adapter-staged tab, but it may not click SKU, form, seller, account, cart, or
+  purchase controls.
+- Xianyu is a separately gated read-only surface. Accept direct listing input
+  only on exact HTTPS host `www.goofish.com`, path `/item`, with a numeric `id`.
+  Never click `聊一聊`, `我想要`, `立即购买`, favorites, follows, offers, or
+  publishing controls. See `references/ultrasource.md` for sourcing and refusal
+  boundaries.
+
+## Codex visual verification
+
+For an explicit visual/UI check, a missing critical field, `ssrSource: "dom"`,
+or an SSR-drift warning, use the Codex sidecar in
+`references/codex-computer-use.md`:
+
+1. Open the retained exact href with `visual-open-attached --brief`. This
+   validates the product URL, marks one owned tab, brings it forward, and leaves
+   it open for Computer Use.
+2. Verify the frontmost page identity against the returned expected href/item
+   id before any UI action.
+3. Read accessibility state first, screenshot second; inspect and scroll only.
+4. Report adapter/UI matches and mismatches explicitly, then run
+   `visual-close-attached`.
+
+If a wall appears, the staged tab is already ready for user handoff. After the
+user says it is cleared, run `visual-resume-attached --brief` exactly once; it
+re-reads the same marked tab without navigation. A second wall is `blocked` and
+ends the attempt.
 
 ## Community sentiment cross-check
 
@@ -141,7 +198,7 @@ step — is your job.
    - **Skill not installed at the expected skills path** → create the
      symlink yourself:
      `ln -s <current-skill-dir> ~/.claude/skills/taobao` (Claude Code) or
-     `ln -s <current-skill-dir> "${CODEX_HOME:-$HOME/.codex}/skills/taobao"`
+     `ln -s <current-skill-dir> "$HOME/.agents/skills/taobao"`
      (Codex). This is the standard my-skills install pattern; prefer symlink
      over copy so repo updates propagate. Do not ask the user to copy-paste it.
 
@@ -194,6 +251,10 @@ are traps, live in `references/browsers.md`.
 - Do not rely on brittle CSS selectors when network/state-based methods are available.
 - If a live browser is required, keep the user's dedicated browser open until the attached action finishes.
 - When evolving the adapter, run tests or smoke commands before claiming success.
+- Before release, run `./scripts/taobao.sh verify`. For a real-site health
+  check, start the managed browser and run `./scripts/taobao.sh e2e-live`.
+  Interpret live status as `pass`, `fail`, `blocked`, or `drift`; never call a
+  CAPTCHA-blocked or SSR-drifted run a pass. See `references/evaluation.md`.
 - If search quality is weak, iteratively tighten the query before giving up: strip filler words, keep core product nouns/specs, try short Chinese synonyms, and only then broaden again.
 - Keep skill documentation and implementation notes in English. If bilingual support is needed, apply it to user-visible output rather than the skill files themselves.
 - Match user-visible output to the calling agent or user's language preferences rather than assuming Chinese. For Taobao work, still preserve Chinese product names, vendor names, and search keywords when they improve search quality or make results easier to verify.

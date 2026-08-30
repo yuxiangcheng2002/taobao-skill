@@ -2,6 +2,7 @@
 # Initial setup / environment check for the taobao skill.
 # Safe to run repeatedly. Persists browser choice to .taobao-config.sh.
 set -o pipefail
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -30,6 +31,10 @@ LEGACY_PLAYWRIGHT_DIR="$ADAPTER_DIR/.playwright"
 LEGACY_DOWNLOADS_DIR="$ADAPTER_DIR/downloads"
 
 mkdir -p "$DATA_DIR"
+chmod 700 "$DATA_DIR" 2>/dev/null || true
+for PRIVATE_FILE in "$CONFIG_FILE" "$PREFERENCES_FILE" "$LAYOUT_VERSION_FILE"; do
+  [[ -f "$PRIVATE_FILE" ]] && chmod 600 "$PRIVATE_FILE" 2>/dev/null || true
+done
 
 ok()     { printf '  [ok]   %s\n' "$*"; }
 warn()   { printf '  [warn] %s\n' "$*"; }
@@ -478,11 +483,11 @@ prompt_browser_selection() {
 prompt_browser_selection
 
 header "Skill installation"
-# Accept either runtime's skill directory: Claude Code (~/.claude/skills)
-# or Codex ($CODEX_HOME/skills, default ~/.codex/skills). Installed in at
-# least one place => ok.
+# Canonical homes: Claude Code (~/.claude/skills) and current Codex
+# (~/.agents/skills). The old $CODEX_HOME/skills path remains detectable so
+# existing copies keep working while setup tells the user how to migrate.
 SKILL_REAL="$(cd "$SKILL_DIR" && pwd -P)"
-TARGETS=("$HOME/.claude/skills/taobao" "${CODEX_HOME:-$HOME/.codex}/skills/taobao")
+TARGETS=("$HOME/.claude/skills/taobao" "$HOME/.agents/skills/taobao" "${CODEX_HOME:-$HOME/.codex}/skills/taobao")
 INSTALLED=0
 for TARGET in "${TARGETS[@]}"; do
   if [[ -L "$TARGET" ]]; then
@@ -500,10 +505,16 @@ for TARGET in "${TARGETS[@]}"; do
     INSTALLED=1
   fi
 done
+LEGACY_CODEX_TARGET="${CODEX_HOME:-$HOME/.codex}/skills/taobao"
+CURRENT_CODEX_TARGET="$HOME/.agents/skills/taobao"
+if [[ -e "$LEGACY_CODEX_TARGET" && ! -e "$CURRENT_CODEX_TARGET" ]]; then
+  warn "legacy Codex install detected without current Codex install"
+  info "  current path: $CURRENT_CODEX_TARGET"
+fi
 if (( ! INSTALLED )); then
   fail "not installed in any skill directory"
   info "Claude Code: ln -s \"$SKILL_DIR\" \"$HOME/.claude/skills/taobao\""
-  info "Codex:       ln -s \"$SKILL_DIR\" \"${CODEX_HOME:-$HOME/.codex}/skills/taobao\""
+  info "Codex:       ln -s \"$SKILL_DIR\" \"$HOME/.agents/skills/taobao\""
   FAILED=1
 fi
 
@@ -522,6 +533,12 @@ fi
 
 header "Data directory"
 ok "data dir: $DATA_DIR"
+DATA_MODE="$(stat -f '%Lp' "$DATA_DIR" 2>/dev/null || stat -c '%a' "$DATA_DIR" 2>/dev/null || true)"
+if [[ "$DATA_MODE" == "700" ]]; then
+  ok "data dir permissions: 700"
+else
+  warn "could not confirm data dir mode 700 (reported: ${DATA_MODE:-unknown})"
+fi
 if [[ "$DATA_DIR" != "$HOME/.taobao-agent" ]]; then
   info "(overridden via TAOBAO_DATA_DIR)"
 fi
@@ -531,6 +548,7 @@ fi
 
 header "Personalization"
 if [[ -f "$PREFERENCES_FILE" ]]; then
+  chmod 600 "$PREFERENCES_FILE" 2>/dev/null || true
   ok "PREFERENCES.md present: $PREFERENCES_FILE"
   info "(read by the agent on activation; edit to record vendors / defaults)"
 else

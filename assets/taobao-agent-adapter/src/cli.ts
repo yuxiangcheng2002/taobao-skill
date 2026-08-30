@@ -1,4 +1,5 @@
 import { TaobaoAgentAdapter } from './taobao/adapter.js';
+import { isAllowedProductUrl } from './taobao/parser.js';
 
 function usage() {
   console.error(`Usage:
@@ -8,6 +9,9 @@ function usage() {
   search <query> [--brief]
   open-result <query> <index> [--no-screenshot] [--brief]
   open-href <url> [--no-screenshot] [--brief]
+  visual-open <url> [--brief]
+  visual-resume [--brief]
+  visual-close
   download-images <query> <index> [outputDir]
 
   --brief drops the networkTap array from the printed JSON — the tap is
@@ -91,11 +95,49 @@ async function main() {
       const { args: argsAfterBrief, present: brief } = consumeFlag(rest, '--brief');
       const { args, present: noScreenshot } = consumeFlag(argsAfterBrief, '--no-screenshot');
       const href = args[0]?.trim();
-      if (!href || !/^https?:\/\//.test(href)) {
-        throw new Error('open-href requires an http(s) url');
+      if (!href || !isAllowedProductUrl(href)) {
+        throw new Error('open-href requires an https product URL on item.taobao.com or detail.tmall.com');
       }
       const result = await adapter.openByHref(href, { screenshot: !noScreenshot });
       printResult(result, brief);
+      return;
+    }
+
+    case 'visual-open': {
+      const { args, present: brief } = consumeFlag(rest, '--brief');
+      const href = args[0]?.trim();
+      if (!process.env.TAOBAO_CDP_URL) {
+        throw new Error('visual-open requires TAOBAO_CDP_URL and a managed attached browser');
+      }
+      if (!href || !isAllowedProductUrl(href)) {
+        throw new Error('visual-open requires an https product URL on item.taobao.com or detail.tmall.com');
+      }
+      const result = await adapter.stageVisualInspection(href);
+      printResult(result, brief);
+      return;
+    }
+
+    case 'visual-resume': {
+      const { args, present: brief } = consumeFlag(rest, '--brief');
+      if (args.length > 0) {
+        throw new Error('visual-resume accepts only --brief');
+      }
+      if (!process.env.TAOBAO_CDP_URL) {
+        throw new Error('visual-resume requires TAOBAO_CDP_URL and a managed attached browser');
+      }
+      const result = await adapter.resumeVisualInspection();
+      printResult(result, brief);
+      return;
+    }
+
+    case 'visual-close': {
+      if (rest.length > 0) {
+        throw new Error('visual-close accepts no arguments');
+      }
+      if (!process.env.TAOBAO_CDP_URL) {
+        throw new Error('visual-close requires TAOBAO_CDP_URL and a managed attached browser');
+      }
+      console.log(JSON.stringify(await adapter.closeVisualInspection(), null, 2));
       return;
     }
 

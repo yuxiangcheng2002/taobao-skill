@@ -13,9 +13,8 @@ flow still works — see "Tarball install" below.
 
 ## Prerequisites
 
-- **Claude Code** or **Codex** installed and working. (The skill was built
-  against Claude Code; Codex reads the same `SKILL.md` format — install
-  under `$CODEX_HOME/skills` instead, see below.)
+- **Claude Code** or **Codex** installed and working. Codex user skills live
+  under `$HOME/.agents/skills`.
 - **Node.js 22+** (`node -v` to check; `brew install node` on macOS,
   distro package on Linux, [nodejs.org](https://nodejs.org) on Windows).
 - **A Chromium-family browser** — Google Chrome, Microsoft Edge, or Brave.
@@ -35,23 +34,22 @@ npx -y degit yuxiangcheng2002/taobao-skill ~/.claude/skills/taobao
 Codex:
 
 ```bash
-mkdir -p "${CODEX_HOME:-$HOME/.codex}/skills"
-npx -y degit yuxiangcheng2002/taobao-skill "${CODEX_HOME:-$HOME/.codex}/skills/taobao"
+mkdir -p "$HOME/.agents/skills"
+npx -y degit yuxiangcheng2002/taobao-skill "$HOME/.agents/skills/taobao"
 ```
 
-Codex treats `~/.codex/skills` as read-only for normal tool calls; the
-wrapper handles this automatically by mirroring the adapter into a
-writable runtime copy under `~/.taobao-agent/runtime/` and building
-there. No manual step needed.
+`~/.codex/skills` is a legacy Codex path. Existing copies remain usable, but
+new installs should use `~/.agents/skills`. For copied read-only installs the
+wrapper builds in a writable runtime mirror under `~/.taobao-agent/runtime/`;
+symlinked developer checkouts build in place.
 
 `degit` (no `npm install` of the package itself) just fetches the latest
 state of the public repo's `main` branch into the target directory. It
 takes a couple of seconds and leaves no `.git/` behind, so subsequent
 re-runs cleanly overwrite to the newest version.
 
-Then restart Claude Code — quit and relaunch (or run `/reload-skills`
-if your build supports it). The skill is registered when Claude Code
-scans `~/.claude/skills/` on startup.
+Then restart the agent runtime. Claude Code scans `~/.claude/skills/`; Codex
+recursively scans `~/.agents/skills/`.
 
 Updating later: the same `npx degit … --force` command pulls the latest
 release. Your login state under `~/.taobao-agent/` is untouched.
